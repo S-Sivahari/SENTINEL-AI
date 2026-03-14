@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SentinelAI — Border Threat Detection</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
+  h1{font-size:1.4rem;font-weight:600;letter-spacing:.5px}
+  h2{font-size:1rem;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+
+  /* NAV */
+  nav{display:flex;align-items:center;gap:16px;padding:14px 24px;background:#161b22;border-bottom:1px solid #30363d}
+  .nav-logo{display:flex;align-items:center;gap:10px}
+  .nav-logo span{font-size:1.3rem}
+  .badge{background:#21262d;border:1px solid #30363d;border-radius:20px;padding:3px 12px;font-size:12px;color:#8b949e}
+  .badge.live{background:#1a2f1a;border-color:#238636;color:#3fb950}
+
+  /* LAYOUT */
+  .app{display:flex;flex-direction:column;height:calc(100vh - 57px)}
+  .stages{display:flex;gap:4px;padding:16px 24px 0}
+  .stage-dot{display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e;cursor:default}
+  .stage-dot.active{color:#58a6ff}
+  .stage-dot.done{color:#3fb950}
+  .dot{width:8px;height:8px;border-radius:50%;background:#30363d}
+  .stage-dot.active .dot{background:#58a6ff}
+  .stage-dot.done .dot{background:#3fb950}
+  .stage-sep{color:#30363d;padding:0 4px}
+
+  .main{display:flex;flex:1;overflow:hidden;max-height:calc(100vh - 140px)}
+  .panel{padding:16px 20px;overflow-y:auto;max-height:100%}
+  .left{flex:1;border-right:1px solid #21262d}
+  .right{width:280px;background:#0d1117}
+
+  /* CARDS */
+  .card{background:#161b22;border:1px solid #21262d;border-radius:10px;padding:14px;margin-bottom:10px}
+  .card h2{font-size:.75rem;margin-bottom:8px}
+
+  /* BUTTONS */
+  btn,.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
+  .btn:hover{background:#30363d;border-color:#8b949e}
+  .btn.primary{background:#238636;border-color:#2ea043;color:#fff}
+  .btn.primary:hover{background:#2ea043}
+  .btn.danger{background:#da3633;border-color:#f85149;color:#fff}
+  .btn.danger:hover{background:#f85149}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* UPLOAD DROP ZONE */
+  .drop-zone{border:2px dashed #30363d;border-radius:10px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+  .drop-zone:hover,.drop-zone.drag{border-color:#58a6ff;background:#161b22}
+  .drop-zone svg{margin-bottom:12px;opacity:.5}
+  .drop-zone p{color:#8b949e;font-size:14px;margin-bottom:8px}
+  .drop-zone small{color:#30363d;font-size:12px}
+
+  /* CANVAS AREA */
+  .canvas-wrap{position:relative;display:inline-block;cursor:crosshair}
+  .canvas-wrap img{display:block;max-width:100%;border-radius:6px}
+  #drawCanvas{position:absolute;top:0;left:0;pointer-events:all}
+
+  /* TOOL TOGGLE */
+  .tool-toggle{display:flex;background:#21262d;border-radius:6px;overflow:hidden;border:1px solid #30363d}
+  .tool-btn{padding:7px 16px;font-size:13px;cursor:pointer;border:none;background:transparent;color:#8b949e;transition:background .15s,color .15s}
+  .tool-btn.active{background:#1f6feb;color:#fff}
+
+  /* PROGRESS */
+  .progress-bar{background:#21262d;border-radius:4px;height:8px;overflow:hidden;margin:8px 0}
+  .progress-fill{height:100%;background:#1f6feb;border-radius:4px;transition:width .3s}
+  .progress-text{font-size:12px;color:#8b949e}
+
+  /* VIDEO PLAYER */
+  #videoFrame{width:100%;max-height:280px;border-radius:6px;display:block;object-fit:contain}
+  .playbar{display:flex;align-items:center;gap:8px;margin:8px 0}
+  .playbar .btn{padding:5px 10px;font-size:12px}
+  #scrubber{flex:1;accent-color:#1f6feb;cursor:pointer}
+  .timecode{font-size:12px;color:#8b949e;white-space:nowrap;min-width:80px;text-align:right}
+
+  /* TABS */
+  .tabs{display:flex;border-bottom:1px solid #21262d;margin-bottom:16px}
+  .tab{padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:#8b949e;transition:color .15s}
+  .tab.active{color:#58a6ff;border-bottom-color:#58a6ff}
+
+  /* ALERT CARDS */
+  .alert-card{border-radius:8px;padding:8px 10px;margin-bottom:6px;border-left:4px solid}
+  .alert-card .al-level{font-weight:600;font-size:12px}
+  .alert-card .al-detail{font-size:11px;color:#8b949e;margin-top:1px}
+  .alert-card .al-jump{font-size:10px;color:#58a6ff;cursor:pointer;margin-top:3px;display:inline-block}
+  .alert-card .al-jump:hover{text-decoration:underline}
+
+  /* METRIC PILLS */
+  .metric-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .metric{background:#21262d;border-radius:8px;padding:8px 10px;flex:1;min-width:70px}
+  .metric .val{font-size:1.2rem;font-weight:600}
+  .metric .lbl{font-size:10px;color:#8b949e;margin-top:2px}
+
+  /* DETECTION COUNTS */
+  .det-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #21262d;font-size:13px}
+  .det-item:last-child{border-bottom:none}
+  .det-count{background:#21262d;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
+
+  /* TABLE */
+  .alert-table{width:100%;border-collapse:collapse;font-size:12px}
+  .alert-table th{background:#21262d;padding:6px 8px;text-align:left;color:#8b949e;font-weight:500;position:sticky;top:0}
+  .alert-table td{padding:5px 8px;border-bottom:1px solid #21262d}
+  .alert-table tr:hover td{background:#161b22}
+  .table-wrap{max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid #21262d}
+
+  /* THREAT LEVEL BADGES */
+  .tl{border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600}
+  .tl.LOW{background:#1a2f1a;color:#3fb950}
+  .tl.MEDIUM{background:#2d2000;color:#e3b341}
+  .tl.HIGH{background:#2d1a00;color:#f0883e}
+  .tl.CRITICAL{background:#2d0000;color:#f85149}
+
+  /* HEATMAP */
+  #heatmapImg{width:100%;max-height:220px;border-radius:6px;margin-bottom:12px;object-fit:contain}
+  .stat-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
+  .stat-bar-bg{flex:1;background:#21262d;border-radius:3px;height:6px;overflow:hidden}
+  .stat-bar-fill{height:100%;background:#1f6feb;border-radius:3px}
+  .stat-label{min-width:90px;color:#8b949e;font-size:12px}
+  .stat-val{min-width:24px;text-align:right;font-size:12px}
+
+  /* SECTION (Stage pages) */
+  .section{max-width:720px;margin:32px auto;padding:0 24px}
+  .section h1{margin-bottom:6px}
+  .section .sub{color:#8b949e;font-size:14px;margin-bottom:24px}
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:#0d1117}
+  ::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+
+  /* HIDDEN */
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <span>🛡️</span>
+    <h1>SentinelAI</h1>
+  </div>
+  <span class="badge">Border Threat Detection</span>
+  <span class="badge live" id="statusBadge">Idle</span>
+</nav>
+
+<!-- STAGE INDICATOR -->
+<div class="stages">
+  <div class="stage-dot active" id="s1dot"><div class="dot"></div>Upload</div>
+  <span class="stage-sep">›</span>
+  <div class="stage-dot" id="s2dot"><div class="dot"></div>Define Zone</div>
+  <span class="stage-sep">›</span>
+  <div class="stage-dot" id="s3dot"><div class="dot"></div>Process</div>
+  <span class="stage-sep">›</span>
+  <div class="stage-dot" id="s4dot"><div class="dot"></div>Review</div>
+</div>
+
+<!-- ═══════════════ STAGE 1: UPLOAD ═══════════════ -->
+<div id="stage1" class="section">
+  <h1>Upload Surveillance Footage</h1>
+  <p class="sub">Upload any drone, CCTV, or aerial video. Supported: mp4, avi, mov, mkv</p>
+
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="1.5">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <p>Drag & drop video here or click to browse</p>
+    <small>mp4 · avi · mov · mkv</small>
+  </div>
+  <input type="file" id="fileInput" accept=".mp4,.avi,.mov,.mkv" class="hidden"/>
+  <div id="uploadProgress" class="hidden" style="margin-top:16px">
+    <div class="progress-text" id="uploadText">Uploading…</div>
+    <div class="progress-bar"><div class="progress-fill" id="uploadFill" style="width:0%"></div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ STAGE 2: DEFINE ═══════════════ -->
+<div id="stage2" class="hidden section" style="max-width:820px">
+  <h1>Define Restricted Zone & Tripwire</h1>
+  <p class="sub">Draw on the first frame. Polygon = restricted area. Line = tripwire.</p>
+
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+    <div class="tool-toggle">
+      <button class="tool-btn active" id="toolPolygon" onclick="setTool('polygon')">🔺 Polygon Zone</button>
+      <button class="tool-btn" id="toolLine" onclick="setTool('line')">━ Tripwire Line</button>
+    </div>
+    <button class="btn sm" onclick="undoLast()">↩ Undo</button>
+    <button class="btn sm danger" onclick="clearCanvas()">🗑 Clear</button>
+    <button class="btn sm primary" onclick="confirmGeometry()">✓ Confirm & Preview</button>
+  </div>
+
+  <div id="toolHint" style="font-size:13px;color:#8b949e;margin-bottom:10px">
+    Click to place polygon corners. Double-click to close.
+  </div>
+
+  <div class="canvas-wrap" id="canvasWrap">
+    <img id="firstFrameImg" src="" alt="first frame" style="max-width:760px;width:100%"/>
+    <canvas id="drawCanvas"></canvas>
+  </div>
+
+  <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span id="zoneStatus" style="font-size:13px;color:#8b949e">Zone: not drawn</span>
+    <span style="color:#30363d">|</span>
+    <span id="wireStatus" style="font-size:13px;color:#8b949e">Tripwire: not set</span>
+  </div>
+
+  <div id="previewWrap" class="hidden" style="margin-top:16px">
+    <h2>Preview</h2>
+    <img id="previewImg" src="" alt="preview" style="width:100%;border-radius:6px"/>
+    <p style="font-size:12px;color:#8b949e;margin-top:6px">If this looks wrong, click Clear and redraw.</p>
+  </div>
+
+  <div style="margin-top:20px">
+    <h2>Processing Options</h2>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <label style="font-size:13px;color:#8b949e">Analyse every
+        <select id="frameSkip" style="margin:0 6px;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:4px;padding:4px 8px;font-size:13px">
+          <option value="1">1st frame (slow)</option>
+          <option value="3" selected>3rd frame (balanced)</option>
+          <option value="5">5th frame (fast)</option>
+          <option value="10">10th frame (fastest)</option>
+        </select>
+      </label>
+    </div>
+    <button class="btn primary" onclick="startProcessing()" style="margin-top:14px;width:100%;padding:11px">
+      ▶ Process Video
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ STAGE 3: PROCESSING ═══════════════ -->
+<div id="stage3" class="hidden section">
+  <h1>Processing Video…</h1>
+  <p class="sub">Running YOLO + ByteTrack + threat engine on every frame.</p>
+  <div class="card" style="margin-top:24px">
+    <div class="progress-text" id="procText" style="margin-bottom:8px;font-size:14px">Starting…</div>
+    <div class="progress-bar" style="height:12px">
+      <div class="progress-fill" id="procFill" style="width:0%"></div>
+    </div>
+    <div id="procPct" style="margin-top:8px;font-size:13px;color:#8b949e;text-align:right">0%</div>
+  </div>
+</div>
+
+<!-- ═══════════════ STAGE 4: REVIEW ═══════════════ -->
+<div id="stage4" class="hidden app" style="height:calc(100vh - 96px)">
+  <div class="main">
+
+    <!-- LEFT: video + tabs -->
+    <div class="left panel">
+
+      <!-- Playback controls -->
+      <div class="playbar">
+        <button class="btn sm" onclick="jumpTo(0)">⏮</button>
+        <button class="btn sm primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+        <button class="btn sm" onclick="jumpTo(totalFrames-1)">⏭</button>
+        <input type="range" id="scrubber" min="0" max="100" value="0" oninput="onScrub(this.value)"/>
+        <span class="timecode" id="timecode">0.0s / 0.0s</span>
+      </div>
+
+      <img id="videoFrame" src="" alt="frame"/>
+
+      <!-- Tabs -->
+      <div class="tabs" style="margin-top:18px">
+        <div class="tab active" onclick="switchTab('log')">📋 Alert Log</div>
+        <div class="tab" onclick="switchTab('heatmap')">🔥 Heatmap</div>
+      </div>
+
+      <!-- Alert Log Tab -->
+      <div id="tabLog">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span id="alertCount" style="font-size:13px;color:#8b949e"></span>
+          <button class="btn sm" onclick="exportCSV()">⬇ Export CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table class="alert-table">
+            <thead><tr>
+              <th>Time</th><th>Track</th><th>Class</th>
+              <th>Event</th><th>Direction</th><th>Threat</th><th>Conf</th><th></th>
+            </tr></thead>
+            <tbody id="alertTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Heatmap Tab -->
+      <div id="tabHeatmap" class="hidden">
+        <img id="heatmapImg" src="" alt="heatmap"/>
+        <div id="statsWrap"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: detection panel -->
+    <div class="right panel">
+      <h2>Live Detections</h2>
+      <div id="detCounts" class="card" style="padding:12px"></div>
+
+      <div style="margin-top:6px">
+        <div class="metric-row" id="summaryMetrics"></div>
+      </div>
+
+      <h2 style="margin-top:14px">Frame Alerts</h2>
+      <div id="frameAlerts"></div>
+
+      <div style="margin-top:auto;padding-top:16px">
+        <button class="btn sm" onclick="location.reload()" style="width:100%">↺ New Video</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let stage         = 1
+let totalFrames   = 0
+let fps           = 25
+let currentFrame  = 0
+let isPlaying     = false
+let playTimer     = null
+let allAlerts     = []
+
+// Drawing
+let tool          = 'polygon'   // 'polygon' | 'line'
+let polyPoints    = []          // current polygon points in canvas px
+let tripwireStart = null        // {x,y} in canvas px
+let tripwireEnd   = null        // {x,y} in canvas px
+let isDrawingLine = false
+
+let scaleX = 1, scaleY = 1     // canvas px → actual frame px
+
+const THREAT_COLORS = {
+  LOW:'#3fb950', MEDIUM:'#e3b341', HIGH:'#f0883e', CRITICAL:'#f85149'
+}
+
+// ── STAGE NAVIGATION ──────────────────────────────────────────────────────────
+function setStage(n) {
+  stage = n
+  ;['stage1','stage2','stage3','stage4'].forEach((id,i) => {
+    document.getElementById(id).classList.toggle('hidden', i+1 !== n)
+  })
+  ;['s1dot','s2dot','s3dot','s4dot'].forEach((id,i) => {
+    const el = document.getElementById(id)
+    el.className = 'stage-dot' + (i+1 < n ? ' done' : i+1 === n ? ' active' : '')
+  })
+}
+
+// ── UPLOAD ────────────────────────────────────────────────────────────────────
+const dropZone   = document.getElementById('dropZone')
+const fileInput  = document.getElementById('fileInput')
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag') })
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'))
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag')
+  if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0])
+})
+fileInput.addEventListener('change', e => { if (e.target.files[0]) uploadFile(e.target.files[0]) })
+
+async function uploadFile(file) {
+  document.getElementById('uploadProgress').classList.remove('hidden')
+  document.getElementById('uploadFill').style.width = '30%'
+  document.getElementById('uploadText').textContent = 'Uploading ' + file.name + '…'
+
+  const fd = new FormData()
+  fd.append('video', file)
+
+  const res  = await fetch('/upload', { method:'POST', body:fd })
+  const data = await res.json()
+  if (data.error) { alert(data.error); return }
+
+  document.getElementById('uploadFill').style.width = '100%'
+
+  fps         = data.fps
+  totalFrames = data.total_frames
+
+  // set up drawing canvas
+  const img = document.getElementById('firstFrameImg')
+  img.src   = 'data:image/jpeg;base64,' + data.first_frame
+  img.onload = () => {
+    const w = img.clientWidth  || img.naturalWidth
+    const h = img.clientHeight || img.naturalHeight
+    scaleX = data.width  / w
+    scaleY = data.height / h
+    initCanvas(w, h)
+  }
+
+  document.getElementById('statusBadge').textContent = `${data.total_frames} frames · ${data.fps}fps`
+  setStage(2)
+}
+
+// ── DRAWING CANVAS ────────────────────────────────────────────────────────────
+function initCanvas(w, h) {
+  const cvs = document.getElementById('drawCanvas')
+  cvs.width  = w
+  cvs.height = h
+  cvs.style.width  = w + 'px'
+  cvs.style.height = h + 'px'
+
+  cvs.onmousedown = startDraw
+  cvs.onmousemove = duringDraw
+  cvs.onmouseup   = endDraw
+  cvs.ondblclick  = closePoly
+
+  redraw()
+}
+
+function canvasXY(e) {
+  const r = document.getElementById('drawCanvas').getBoundingClientRect()
+  return { x: e.clientX - r.left, y: e.clientY - r.top }
+}
+
+function startDraw(e) {
+  const {x,y} = canvasXY(e)
+  if (tool === 'polygon') {
+    polyPoints.push({x,y})
+    redraw()
+  } else {
+    isDrawingLine = true
+    tripwireStart = {x,y}
+    tripwireEnd   = {x,y}
+  }
+}
+
+function duringDraw(e) {
+  if (tool === 'line' && isDrawingLine) {
+    tripwireEnd = canvasXY(e)
+    redraw()
+  }
+}
+
+function endDraw(e) {
+  if (tool === 'line' && isDrawingLine) {
+    tripwireEnd   = canvasXY(e)
+    isDrawingLine = false
+    redraw()
+    updateStatus()
+  }
+}
+
+function closePoly() {
+  if (tool === 'polygon' && polyPoints.length >= 3) {
+    redraw(true)
+    updateStatus()
+  }
+}
+
+function redraw(closed=false) {
+  const cvs = document.getElementById('drawCanvas')
+  const ctx = cvs.getContext('2d')
+  ctx.clearRect(0, 0, cvs.width, cvs.height)
+
+  // polygon
+  if (polyPoints.length > 0) {
+    ctx.beginPath()
+    ctx.moveTo(polyPoints[0].x, polyPoints[0].y)
+    polyPoints.forEach(p => ctx.lineTo(p.x, p.y))
+    if (closed) ctx.closePath()
+    ctx.strokeStyle = '#f85149'
+    ctx.lineWidth   = 2
+    ctx.stroke()
+    if (closed) {
+      ctx.fillStyle = 'rgba(248,81,73,0.15)'
+      ctx.fill()
+    }
+    polyPoints.forEach((p,i) => {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 5, 0, Math.PI*2)
+      ctx.fillStyle = i===0 ? '#f85149' : '#58a6ff'
+      ctx.fill()
+    })
+  }
+
+  // tripwire
+  if (tripwireStart && tripwireEnd) {
+    ctx.beginPath()
+    ctx.moveTo(tripwireStart.x, tripwireStart.y)
+    ctx.lineTo(tripwireEnd.x,   tripwireEnd.y)
+    ctx.strokeStyle = '#f0883e'
+    ctx.lineWidth   = 2.5
+    ctx.setLineDash([8,4])
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+}
+
+function setTool(t) {
+  tool = t
+  document.getElementById('toolPolygon').classList.toggle('active', t==='polygon')
+  document.getElementById('toolLine').classList.toggle('active', t==='line')
+  document.getElementById('toolHint').textContent = t === 'polygon'
+    ? 'Click to place polygon corners. Double-click to close the shape.'
+    : 'Click and drag to draw the tripwire line.'
+}
+
+function undoLast() {
+  if (tool === 'polygon') { polyPoints.pop(); redraw() }
+  else { tripwireStart = null; tripwireEnd = null; redraw() }
+  updateStatus()
+}
+
+function clearCanvas() {
+  polyPoints    = []
+  tripwireStart = null
+  tripwireEnd   = null
+  redraw()
+  updateStatus()
+  document.getElementById('previewWrap').classList.add('hidden')
+}
+
+function updateStatus() {
+  document.getElementById('zoneStatus').textContent =
+    polyPoints.length >= 3 ? `Zone: ${polyPoints.length} points ✓` : 'Zone: not drawn'
+  document.getElementById('zoneStatus').style.color =
+    polyPoints.length >= 3 ? '#3fb950' : '#8b949e'
+  document.getElementById('wireStatus').textContent =
+    (tripwireStart && tripwireEnd) ? 'Tripwire: set ✓' : 'Tripwire: not set'
+  document.getElementById('wireStatus').style.color =
+    (tripwireStart && tripwireEnd) ? '#3fb950' : '#8b949e'
+}
+
+async function confirmGeometry() {
+  if (polyPoints.length < 3 && !tripwireStart) {
+    alert('Draw a zone (polygon) or a tripwire line first.')
+    return
+  }
+
+  const zone = polyPoints.map(p => [Math.round(p.x*scaleX), Math.round(p.y*scaleY)])
+  const wire = tripwireStart
+    ? [[Math.round(tripwireStart.x*scaleX), Math.round(tripwireStart.y*scaleY)],
+       [Math.round(tripwireEnd.x*scaleX),   Math.round(tripwireEnd.y*scaleY)]]
+    : null
+
+  const res  = await fetch('/set_geometry', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ zone, tripwire:wire })
+  })
+  const data = await res.json()
+
+  document.getElementById('previewImg').src = 'data:image/jpeg;base64,' + data.preview
+  document.getElementById('previewWrap').classList.remove('hidden')
+}
+
+// ── PROCESSING ────────────────────────────────────────────────────────────────
+async function startProcessing() {
+  if (polyPoints.length < 3 && !tripwireStart) {
+    if (!confirm('No zone or tripwire drawn. Process anyway? (detections only, no alerts)')) return
+  }
+
+  // send geometry first
+  const zone = polyPoints.map(p => [Math.round(p.x*scaleX), Math.round(p.y*scaleY)])
+  const wire = tripwireStart
+    ? [[Math.round(tripwireStart.x*scaleX), Math.round(tripwireStart.y*scaleY)],
+       [Math.round(tripwireEnd.x*scaleX),   Math.round(tripwireEnd.y*scaleY)]]
+    : null
+  await fetch('/set_geometry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zone,tripwire:wire})})
+
+  setStage(3)
+
+  await fetch('/process', {method:'POST'})
+  pollProgress()
+}
+
+function pollProgress() {
+  const interval = setInterval(async () => {
+    const data = await fetch('/progress').then(r=>r.json())
+    document.getElementById('procFill').style.width = data.progress + '%'
+    document.getElementById('procPct').textContent  = data.progress + '%'
+    document.getElementById('procText').textContent = data.text || 'Processing…'
+
+    if (data.done) {
+      clearInterval(interval)
+      await loadReview()
+      setStage(4)
+    }
+  }, 800)
+}
+
+// ── REVIEW ────────────────────────────────────────────────────────────────────
+async function loadReview() {
+  allAlerts = await fetch('/alerts').then(r=>r.json())
+
+  document.getElementById('scrubber').max = totalFrames - 1
+  document.getElementById('alertCount').textContent = `${allAlerts.length} total alerts`
+
+  buildAlertTable()
+  loadSummaryMetrics()
+  await loadFrame(0)
+  await loadHeatmap()
+}
+
+async function loadFrame(idx) {
+  currentFrame = Math.max(0, Math.min(idx, totalFrames-1))
+  document.getElementById('scrubber').value = currentFrame
+
+  const data = await fetch(`/frame/${currentFrame}`).then(r=>r.json())
+  document.getElementById('videoFrame').src = 'data:image/jpeg;base64,' + data.frame
+
+  const dur = (totalFrames/fps).toFixed(1)
+  document.getElementById('timecode').textContent = `${data.timestamp} / ${dur}s`
+
+  // detection counts
+  const dc = document.getElementById('detCounts')
+  if (Object.keys(data.counts).length === 0) {
+    dc.innerHTML = '<div style="color:#8b949e;font-size:13px">No detections</div>'
+  } else {
+    dc.innerHTML = Object.entries(data.counts)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([k,v]) => `<div class="det-item"><span>${k}</span><span class="det-count">${v}</span></div>`)
+      .join('')
+  }
+
+  // frame alerts
+  const fa = document.getElementById('frameAlerts')
+  if (!data.alerts.length) {
+    fa.innerHTML = '<div style="color:#8b949e;font-size:13px">No alerts this frame</div>'
+  } else {
+    fa.innerHTML = data.alerts.map(a => alertCard(a, false)).join('')
+  }
+}
+
+function alertCard(a, jumpable=true) {
+  const c = THREAT_COLORS[a.threat_level] || '#888'
+  return `<div class="alert-card" style="background:${c}18;border-color:${c}">
+    <div class="al-level" style="color:${c}">${a.threat_level}</div>
+    <div class="al-detail">${a.label} #${a.track_id} · ${a.event} · ${a.direction}</div>
+    <div class="al-detail">${a.timestamp.toFixed?.(2)||a.timestamp}s · ${Math.round(a.confidence*100)}%</div>
+    ${jumpable ? `<span class="al-jump" onclick="jumpTo(${a.frame_idx})">→ Jump to frame ${a.frame_idx}</span>` : ''}
+  </div>`
+}
+
+function buildAlertTable() {
+  const tbody = document.getElementById('alertTableBody')
+  tbody.innerHTML = allAlerts.map(a => {
+    const c = THREAT_COLORS[a.threat_level]||'#888'
+    return `<tr>
+      <td>${(a.timestamp.toFixed?.(2)||a.timestamp)}s</td>
+      <td>#${a.track_id}</td>
+      <td>${a.label}</td>
+      <td>${a.event}</td>
+      <td>${a.direction}</td>
+      <td><span class="tl ${a.threat_level}">${a.threat_level}</span></td>
+      <td>${Math.round(a.confidence*100)}%</td>
+      <td><span style="color:#58a6ff;cursor:pointer;font-size:11px" onclick="jumpTo(${a.frame_idx})">→</span></td>
+    </tr>`
+  }).join('')
+}
+
+function loadSummaryMetrics() {
+  const total    = allAlerts.length
+  const critical = allAlerts.filter(a=>a.threat_level==='CRITICAL').length
+  const high     = allAlerts.filter(a=>a.threat_level==='HIGH').length
+  const entries  = allAlerts.filter(a=>a.event==='LINE_CROSSED'&&a.direction==='ENTRY').length
+
+  document.getElementById('summaryMetrics').innerHTML = `
+    <div class="metric"><div class="val">${total}</div><div class="lbl">Total</div></div>
+    <div class="metric" style="color:#f85149"><div class="val" style="color:#f85149">${critical}</div><div class="lbl">Critical</div></div>
+    <div class="metric" style="color:#f0883e"><div class="val" style="color:#f0883e">${high}</div><div class="lbl">High</div></div>
+    <div class="metric" style="color:#58a6ff"><div class="val" style="color:#58a6ff">${entries}</div><div class="lbl">Entries</div></div>
+  `
+}
+
+async function loadHeatmap() {
+  const data = await fetch('/heatmap').then(r=>r.json())
+  if (!data.heatmap) return
+
+  document.getElementById('heatmapImg').src = 'data:image/jpeg;base64,' + data.heatmap
+
+  const s = data.stats
+  let html = ''
+
+  // by level
+  if (s.by_level && Object.keys(s.by_level).length) {
+    html += '<h2 style="margin-bottom:10px;margin-top:4px">By Threat Level</h2>'
+    const mx = Math.max(...Object.values(s.by_level))
+    ;['CRITICAL','HIGH','MEDIUM','LOW'].forEach(lv => {
+      const v = s.by_level[lv]||0
+      if (!v) return
+      const c = THREAT_COLORS[lv]
+      html += `<div class="stat-bar-row">
+        <span class="stat-label" style="color:${c}">${lv}</span>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v/mx*100}%;background:${c}"></div></div>
+        <span class="stat-val">${v}</span></div>`
+    })
+  }
+
+  if (s.by_class && Object.keys(s.by_class).length) {
+    html += '<h2 style="margin:14px 0 10px">By Class</h2>'
+    const mx = Math.max(...Object.values(s.by_class))
+    Object.entries(s.by_class).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{
+      html += `<div class="stat-bar-row">
+        <span class="stat-label">${k}</span>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v/mx*100}%"></div></div>
+        <span class="stat-val">${v}</span></div>`
+    })
+  }
+
+  if (s.by_event && Object.keys(s.by_event).length) {
+    html += '<h2 style="margin:14px 0 10px">By Event</h2>'
+    const mx = Math.max(...Object.values(s.by_event))
+    Object.entries(s.by_event).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{
+      html += `<div class="stat-bar-row">
+        <span class="stat-label">${k.replace('_',' ')}</span>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v/mx*100}%;background:#8b949e"></div></div>
+        <span class="stat-val">${v}</span></div>`
+    })
+  }
+
+  if (s.entries !== undefined) {
+    html += `<h2 style="margin:14px 0 10px">Border Crossings</h2>
+    <div class="metric-row">
+      <div class="metric"><div class="val" style="color:#f85149">${s.entries}</div><div class="lbl">Entries</div></div>
+      <div class="metric"><div class="val" style="color:#3fb950">${s.exits}</div><div class="lbl">Exits</div></div>
+      <div class="metric"><div class="val" style="color:#e3b341">${s.intrusions}</div><div class="lbl">Intrusions</div></div>
+    </div>`
+  }
+
+  document.getElementById('statsWrap').innerHTML = html
+}
+
+// ── PLAYBACK ─────────────────────────────────────────────────────────────────
+async function onScrub(val) {
+  stopPlay()
+  await loadFrame(parseInt(val))
+}
+
+function jumpTo(idx) {
+  stopPlay()
+  loadFrame(idx)
+}
+
+function togglePlay() {
+  if (isPlaying) stopPlay()
+  else           startPlay()
+}
+
+function startPlay() {
+  isPlaying = true
+  document.getElementById('playBtn').textContent = '⏸ Pause'
+  document.getElementById('playBtn').classList.add('primary')
+  advance()
+}
+
+function stopPlay() {
+  isPlaying = false
+  if (playTimer) clearTimeout(playTimer)
+  document.getElementById('playBtn').textContent = '▶ Play'
+}
+
+async function advance() {
+  if (!isPlaying) return
+  if (currentFrame >= totalFrames - 1) { stopPlay(); return }
+  await loadFrame(currentFrame + 1)
+  playTimer = setTimeout(advance, 1000 / fps)
+}
+
+// ── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active', ['log','heatmap'][i]===t))
+  document.getElementById('tabLog').classList.toggle('hidden', t!=='log')
+  document.getElementById('tabHeatmap').classList.toggle('hidden', t!=='heatmap')
+}
+
+// ── EXPORT ───────────────────────────────────────────────────────────────────
+function exportCSV() {
+  window.location.href = '/export_csv'
+}
+</script>
+</body>
+</html>

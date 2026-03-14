@@ -1,0 +1,46 @@
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.DS_Store
+.vscode
+.idea
+
+# Model files (large, will be auto-downloaded)
+*.pt
+yolov8*.pt
+
+# Video/media files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.flv
+*.webm
+videos/*
+!videos/.gitkeep
+
+# Temp files
+*.tmp
+*.log
+.env
+tempfiles/
+temp/
+
+# IDE
+*.swp
+*.swo
+
+# Datasets (large)
+VisDrone dataset/
+VisDrone2019-DET-val/
+VisDrone2019-DET-train/
+VisDrone2019-DET-test-dev/
+VisDrone2019-DET-test-challenge/
+pics/
+
