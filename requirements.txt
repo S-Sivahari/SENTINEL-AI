@@ -1,4 +1,7 @@
 flask
 ultralytics
-opencv-python
+opencv-python-headless
 numpy
+pandas
+Pillow
+lapx

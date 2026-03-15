@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     libwebp7 \
     libopenjp2-7 \
     liblcms2-2 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
