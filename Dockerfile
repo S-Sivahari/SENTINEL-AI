@@ -8,9 +8,19 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
-    libgl1-mesa-glx \
     libglib2.0-0 \
     libx11-6 \
+    libxkbcommon0 \
+    libdbus-1-3 \
+    libfontconfig1 \
+    libharfbuzz0b \
+    libfreetype6 \
+    libjpeg62-turbo \
+    libpng16-16 \
+    libtiff6 \
+    libwebp7 \
+    libopenjp2-7 \
+    liblcms2-2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
