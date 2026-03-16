@@ -1,776 +1,2487 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SentinelAI — Border Threat Detection</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
-  h1{font-size:1.4rem;font-weight:600;letter-spacing:.5px}
-  h2{font-size:1rem;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sentinel AI — Border Threat Detection</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 
-  /* NAV */
-  nav{display:flex;align-items:center;gap:16px;padding:14px 24px;background:#161b22;border-bottom:1px solid #30363d}
-  .nav-logo{display:flex;align-items:center;gap:10px}
-  .nav-logo span{font-size:1.3rem}
-  .badge{background:#21262d;border:1px solid #30363d;border-radius:20px;padding:3px 12px;font-size:12px;color:#8b949e}
-  .badge.live{background:#1a2f1a;border-color:#238636;color:#3fb950}
+    :root {
+      --bg-main: #0f0f11;
+      --bg-panel: #27272a;
+      --bg-card: #27272a;
+      --accent: #3a64ed;
+      --accent-hover: #2952d6;
+      --text-primary: #F0F6FC;
+      --text-secondary: #8B949E;
+      --border: #2a2a30;
+      --border-hover: #3a3a45;
+      --danger: #F85149;
+      --success: #3FB950;
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      --font-main: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    }
 
-  /* LAYOUT */
-  .app{display:flex;flex-direction:column;height:calc(100vh - 57px)}
-  .stages{display:flex;gap:4px;padding:16px 24px 0}
-  .stage-dot{display:flex;align-items:center;gap:6px;font-size:12px;color:#8b949e;cursor:default}
-  .stage-dot.active{color:#58a6ff}
-  .stage-dot.done{color:#3fb950}
-  .dot{width:8px;height:8px;border-radius:50%;background:#30363d}
-  .stage-dot.active .dot{background:#58a6ff}
-  .stage-dot.done .dot{background:#3fb950}
-  .stage-sep{color:#30363d;padding:0 4px}
+    body.light-theme {
+      --bg-main: #edf2fb;
+      --bg-panel: #ffffff;
+      --bg-card: #ffffff;
+      --accent: #1f67f0;
+      --accent-hover: #1554cc;
+      --text-primary: #0f172a;
+      --text-secondary: #4b5568;
+      --border: #d5dcea;
+      --border-hover: #b6c3de;
+      --danger: #d14444;
+      --success: #1f8f4d;
+      --shadow: 0 16px 32px rgba(34, 60, 105, 0.16);
+    }
 
-  .main{display:flex;flex:1;overflow:hidden;max-height:calc(100vh - 140px)}
-  .panel{padding:16px 20px;overflow-y:auto;max-height:100%}
-  .left{flex:1;border-right:1px solid #21262d}
-  .right{width:280px;background:#0d1117}
 
-  /* CARDS */
-  .card{background:#161b22;border:1px solid #21262d;border-radius:10px;padding:14px;margin-bottom:10px}
-  .card h2{font-size:.75rem;margin-bottom:8px}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  /* BUTTONS */
-  btn,.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:6px;border:1px solid #30363d;background:#21262d;color:#e6edf3;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
-  .btn:hover{background:#30363d;border-color:#8b949e}
-  .btn.primary{background:#238636;border-color:#2ea043;color:#fff}
-  .btn.primary:hover{background:#2ea043}
-  .btn.danger{background:#da3633;border-color:#f85149;color:#fff}
-  .btn.danger:hover{background:#f85149}
-  .btn.sm{padding:5px 10px;font-size:12px}
-  .btn:disabled{opacity:.4;cursor:not-allowed}
-  .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+    html,
+    body {
+      font-family: var(--font-main);
+      background:
+        radial-gradient(1200px 500px at 90% -15%, rgba(58, 100, 237, 0.12), transparent 55%),
+        radial-gradient(900px 450px at -10% 100%, rgba(59, 185, 80, 0.08), transparent 52%),
+        var(--bg-main);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow: hidden;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
 
-  /* UPLOAD DROP ZONE */
-  .drop-zone{border:2px dashed #30363d;border-radius:10px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
-  .drop-zone:hover,.drop-zone.drag{border-color:#58a6ff;background:#161b22}
-  .drop-zone svg{margin-bottom:12px;opacity:.5}
-  .drop-zone p{color:#8b949e;font-size:14px;margin-bottom:8px}
-  .drop-zone small{color:#30363d;font-size:12px}
+    h1,
+    h2,
+    h3 {
+      font-family: var(--font-main);
+      letter-spacing: -0.01em;
+    }
 
-  /* CANVAS AREA */
-  .canvas-wrap{position:relative;display:inline-block;cursor:crosshair}
-  .canvas-wrap img{display:block;max-width:100%;border-radius:6px}
-  #drawCanvas{position:absolute;top:0;left:0;pointer-events:all}
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
 
-  /* TOOL TOGGLE */
-  .tool-toggle{display:flex;background:#21262d;border-radius:6px;overflow:hidden;border:1px solid #30363d}
-  .tool-btn{padding:7px 16px;font-size:13px;cursor:pointer;border:none;background:transparent;color:#8b949e;transition:background .15s,color .15s}
-  .tool-btn.active{background:#1f6feb;color:#fff}
+    h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
 
-  /* PROGRESS */
-  .progress-bar{background:#21262d;border-radius:4px;height:8px;overflow:hidden;margin:8px 0}
-  .progress-fill{height:100%;background:#1f6feb;border-radius:4px;transition:width .3s}
-  .progress-text{font-size:12px;color:#8b949e}
+    .global-actions {
+      position: fixed;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      z-index: 1200;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
 
-  /* VIDEO PLAYER */
-  #videoFrame{width:100%;max-height:280px;border-radius:6px;display:block;object-fit:contain}
-  .playbar{display:flex;align-items:center;gap:8px;margin:8px 0}
-  .playbar .btn{padding:5px 10px;font-size:12px}
-  #scrubber{flex:1;accent-color:#1f6feb;cursor:pointer}
-  .timecode{font-size:12px;color:#8b949e;white-space:nowrap;min-width:80px;text-align:right}
+    .global-actions .btn {
+      pointer-events: auto;
+      backdrop-filter: blur(12px);
+      background: rgba(22, 24, 31, 0.76);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+      font-size: 0.9rem;
+      min-height: 40px;
+      padding: 9px 16px;
+    }
 
-  /* TABS */
-  .tabs{display:flex;border-bottom:1px solid #21262d;margin-bottom:16px}
-  .tab{padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:#8b949e;transition:color .15s}
-  .tab.active{color:#58a6ff;border-bottom-color:#58a6ff}
+    .global-actions-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: auto;
+    }
 
-  /* ALERT CARDS */
-  .alert-card{border-radius:8px;padding:8px 10px;margin-bottom:6px;border-left:4px solid}
-  .alert-card .al-level{font-weight:600;font-size:12px}
-  .alert-card .al-detail{font-size:11px;color:#8b949e;margin-top:1px}
-  .alert-card .al-jump{font-size:10px;color:#58a6ff;cursor:pointer;margin-top:3px;display:inline-block}
-  .alert-card .al-jump:hover{text-decoration:underline}
+    body.light-theme .global-actions .btn {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(32, 50, 88, 0.18);
+      box-shadow: 0 12px 26px rgba(26, 54, 96, 0.12);
+    }
 
-  /* METRIC PILLS */
-  .metric-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-  .metric{background:#21262d;border-radius:8px;padding:8px 10px;flex:1;min-width:70px}
-  .metric .val{font-size:1.2rem;font-weight:600}
-  .metric .lbl{font-size:10px;color:#8b949e;margin-top:2px}
+    /* LAYOUT */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 70px);
+    }
 
-  /* DETECTION COUNTS */
-  .det-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #21262d;font-size:13px}
-  .det-item:last-child{border-bottom:none}
-  .det-count{background:#21262d;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:600}
 
-  /* TABLE */
-  .alert-table{width:100%;border-collapse:collapse;font-size:12px}
-  .alert-table th{background:#21262d;padding:6px 8px;text-align:left;color:#8b949e;font-weight:500;position:sticky;top:0}
-  .alert-table td{padding:5px 8px;border-bottom:1px solid #21262d}
-  .alert-table tr:hover td{background:#161b22}
-  .table-wrap{max-height:200px;overflow-y:auto;border-radius:6px;border:1px solid #21262d}
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
 
-  /* THREAT LEVEL BADGES */
-  .tl{border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600}
-  .tl.LOW{background:#1a2f1a;color:#3fb950}
-  .tl.MEDIUM{background:#2d2000;color:#e3b341}
-  .tl.HIGH{background:#2d1a00;color:#f0883e}
-  .tl.CRITICAL{background:#2d0000;color:#f85149}
+    .panel {
+      padding: 24px 32px;
+      overflow-y: hidden;
+    }
 
-  /* HEATMAP */
-  #heatmapImg{width:100%;max-height:220px;border-radius:6px;margin-bottom:12px;object-fit:contain}
-  .stat-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px}
-  .stat-bar-bg{flex:1;background:#21262d;border-radius:3px;height:6px;overflow:hidden}
-  .stat-bar-fill{height:100%;background:#1f6feb;border-radius:3px}
-  .stat-label{min-width:90px;color:#8b949e;font-size:12px}
-  .stat-val{min-width:24px;text-align:right;font-size:12px}
+    .left {
+      flex: 1;
+      position: relative;
+    }
 
-  /* SECTION (Stage pages) */
-  .section{max-width:720px;margin:32px auto;padding:0 24px}
-  .section h1{margin-bottom:6px}
-  .section .sub{color:#8b949e;font-size:14px;margin-bottom:24px}
+    .right {
+      width: 340px;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+    }
 
-  /* SCROLLBAR */
-  ::-webkit-scrollbar{width:6px;height:6px}
-  ::-webkit-scrollbar-track{background:#0d1117}
-  ::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+    /* CARDS & COMPONENTS */
+    .card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
 
-  /* HIDDEN */
-  .hidden{display:none!important}
-</style>
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+
+    .btn:hover:not(:disabled) {
+      background: #1C2128;
+      border-color: var(--border-hover);
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: #FFFFFF;
+      border-color: var(--accent);
+    }
+
+    .btn.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
+    .btn.danger {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .btn.danger:hover:not(:disabled) {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+
+    /* UPLOAD AREA */    /* UPLOAD CARD INTERNALS */
+    .upload-card {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: 300px;
+    }
+
+    .upload-card-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .upload-card-tab {
+      flex: 1;
+      padding: 12px 0;
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+
+    .upload-card-tab.active {
+      color: #3b82f6;
+      border-bottom-color: #3b82f6;
+    }
+
+    .upload-card-tab:hover:not(.active) {
+      color: var(--text-primary);
+    }
+
+    .upload-card-body {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: #141f34;
+      padding: 32px 24px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    body.light-theme .upload-card-body {
+      background: #eef4ff;
+    }
+
+    .upload-card-body:hover,
+    .upload-card-body.drag {
+      background: #1a2b49;
+    }
+
+    body.light-theme .upload-card-body:hover,
+    body.light-theme .upload-card-body.drag {
+      background: #e4edff;
+    }
+
+    .upload-card-body .type-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.85);
+      letter-spacing: 0.04em;
+      pointer-events: none;
+    }
+
+    .upload-card-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-evenly;
+      border-top: 1px solid var(--border);
+      padding: 10px 0;
+      background: var(--bg-panel);
+    }
+
+    .upload-tool-btn {
+      background: transparent;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 6px 20px;
+      border-radius: 6px;
+      transition: color 0.2s ease, background 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .upload-tool-btn:hover:not(:disabled) {
+      color: #3b82f6;
+      background: rgba(59, 130, 246, 0.08);
+    }
+
+    .upload-tool-btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+    }
+
+    .upload-tool-btn.primary-tool {
+      color: #3b82f6;
+    }
+
+    .upload-tool-btn svg { display: block; }
+    .text-input {
+      width: 100%;
+      background: #0D1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text-primary);
+      font-size: 0.92rem;
+      outline: none;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+
+    body.light-theme .text-input {
+      background: #f7faff;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(139, 157, 244, 0.1);
+    }
+
+    .pill-group {
+      display: flex;
+      gap: 4px;
+      background: #0D1117;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .pill-btn {
+      flex: 1;
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .pill-btn.active {
+      background: #30363D;
+      color: var(--accent);
+    }
+
+    .block-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .mode-tabs {
+      display: flex;
+      background: var(--bg-main);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      width: fit-content;
+    }
+
+    .mode-tab {
+      padding: 8px 24px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-tab.active {
+      background: var(--bg-panel);
+      color: var(--accent);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+
+    /* PROGRESS */
+    .progress-bar {
+      background: var(--border);
+      border-radius: 10px;
+      height: 10px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* CANVAS ROOM */
+    .canvas-wrap {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    #drawCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: crosshair;
+    }
+
+    /* VIDEO PLAYER */
+    #videoFrame {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #000;
+      box-shadow: var(--shadow);
+    }
+
+    .playbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 0;
+    }
+
+    #scrubber {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+      height: 6px;
+      border-radius: 3px;
+    }
+
+    /* DASHBOARD TABS */
+    .tabs {
+      display: flex;
+      gap: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .tab {
+      padding: 12px 4px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ALERTS & STATS */
+    .alert-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 4px;
+    }
+
+    .alert-table th {
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      text-align: left;
+      padding: 12px 16px;
+    }
+
+    .alert-table td {
+      background: rgba(255, 255, 255, 0.02);
+      padding: 12px 16px;
+      font-size: 13px;
+    }
+
+    .alert-table tr:hover td {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .alert-table td:first-child {
+      border-radius: 8px 0 0 8px;
+    }
+
+    .alert-table td:last-child {
+      border-radius: 0 8px 8px 0;
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .metric {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .metric .val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: block;
+    }
+
+    .metric .lbl {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* SCROLLBAR */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-main);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3D444D;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* STAGE SPECIFIC */
+    .section {
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+
+    .section h1 {
+      margin-bottom: 8px;
+      font-size: 2.35rem;
+    }
+
+    .section .sub {
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+      margin-bottom: 40px;
+    }
+
+    .landing-head {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      padding-bottom: 8px;
+      overflow: hidden;
+    }
+
+    .landing-title {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.02em;
+      margin: 0;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .landing-desc {
+      margin: 0;
+      color: #fff;
+      font-size: 1.2rem;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    body.light-theme .landing-title {
+      color: #0f172a;
+    }
+
+    body.light-theme .landing-desc {
+      color: #334155;
+    }
+
+    .landing-grid {
+      display: grid;
+      grid-template-columns: minmax(620px, 1.5fr) minmax(420px, 0.95fr);
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .preview-player {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+    }
+
+    .preview-slider {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+      height: 6px;
+    }
+
+    .stage2-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    .stage2-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      min-height: 690px;
+      box-shadow: var(--shadow);
+    }
+
+    .draw-tool-group {
+      display: flex;
+      gap: 6px;
+      background: var(--bg-main);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .draw-tool-btn {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 6px;
+      padding: 8px 13px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .draw-tool-btn.active {
+      color: #fff;
+      border-color: rgba(58, 100, 237, 0.65);
+      background: rgba(58, 100, 237, 0.28);
+      box-shadow: 0 0 0 1px rgba(58, 100, 237, 0.25) inset;
+    }
+
+    .stage2-config-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .stage2-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .stage2-pill strong {
+      color: var(--text-primary);
+      margin-left: 4px;
+      font-weight: 700;
+    }
+
+    .stage2-media-box {
+      background: var(--bg-panel);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      height: 390px;
+      margin-top: auto;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0b111c;
+    }
+
+    .stage2-preview-empty {
+      height: 390px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--text-secondary);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.01);
+      padding: 20px;
+      font-size: 0.98rem;
+    }
+
+    .stage2-preview-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      justify-content: flex-end;
+    }
+
+    #firstFrameImg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: block;
+      user-select: none;
+      -webkit-user-drag: none;
+      max-width: none;
+      max-height: none;
+    }
+
+    #drawCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: crosshair;
+    }
+
+    .review-player-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.72);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #stage4 {
+      padding-top: 66px;
+      padding-left: 18px;
+      padding-right: 18px;
+      padding-bottom: 14px;
+      height: 100vh !important;
+    }
+
+    #stage4 .main {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(360px, 1fr);
+      gap: 16px;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .review-col {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .review-left {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .review-right {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .review-video-card {
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      position: relative;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .review-video-card #videoFrame {
+      height: 100%;
+      width: 100%;
+      object-fit: contain;
+      display: block;
+      background: #000;
+    }
+
+    .review-card {
+      margin-bottom: 0;
+      padding: 14px;
+    }
+
+    .review-card h2 {
+      margin-bottom: 10px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+    }
+
+    .timeline-card {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 14px;
+    }
+
+    .review-switch-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+    }
+
+    #stage4 .mode-tabs {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      padding: 4px;
+    }
+
+    #stage4 .mode-tab {
+      width: 100%;
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      text-align: center;
+    }
+
+    .timeline-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .timeline-table-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    #stage4 .alert-table th {
+      font-size: 0.72rem;
+      padding: 8px 10px;
+    }
+
+    #stage4 .alert-table td {
+      font-size: 0.78rem;
+      padding: 8px 10px;
+    }
+
+    #stage4 #statsWrap h2 {
+      font-size: 0.76rem;
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    .review-player-bar #scrubber {
+      flex: 1 1 240px;
+      min-width: 200px;
+    }
+
+    .review-timecode {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.76rem;
+      color: var(--text-primary);
+      white-space: nowrap;
+      min-width: 108px;
+      text-align: right;
+      margin-left: auto;
+    }
+
+    .det-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 2px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.84rem;
+    }
+
+    .det-item:last-child {
+      border-bottom: none;
+    }
+
+    .det-count {
+      min-width: 30px;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-weight: 700;
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 0.75rem;
+    }
+
+    #statsWrap {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      overflow: auto;
+      max-height: 100%;
+    }
+
+    .stat-bar-row {
+      display: grid;
+      grid-template-columns: 104px minmax(0, 1fr) 34px;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 0.82rem;
+    }
+
+    .stat-label {
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 600;
+    }
+
+    #stage4 #summaryMetrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    #stage4 #summaryMetrics .card {
+      margin: 0;
+    }
+
+    .stat-bar-bg {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .stat-bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+    }
+
+    .stat-val {
+      text-align: right;
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+
+    .processing-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1250;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4, 8, 14, 0.58);
+      backdrop-filter: blur(2px);
+      padding: 20px;
+    }
+
+    .processing-overlay-card {
+      width: min(520px, calc(100vw - 40px));
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+      padding: 34px 24px;
+      text-align: center;
+    }
+
+    @media (max-width: 1200px) {
+      .landing-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stage2-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .landing-head {
+        align-items: flex-start;
+      }
+
+      .landing-desc {
+        white-space: normal;
+      }
+
+      .review-timecode {
+        min-width: 0;
+        width: 100%;
+        text-align: left;
+        margin-left: 0;
+      }
+
+      #stage4 {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      #stage4 .main {
+        grid-template-columns: 1fr;
+      }
+
+      .review-col {
+        overflow-y: auto;
+      }
+
+      .review-left,
+      .review-right {
+        overflow-y: visible;
+      }
+
+      .timeline-table-wrap {
+        max-height: 42vh;
+      }
+
+      #stage4 #summaryMetrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stat-bar-row {
+        grid-template-columns: 86px minmax(0, 1fr) 30px;
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- NAV -->
-<nav>
-  <div class="nav-logo">
-    <span>🛡️</span>
-    <h1>SentinelAI</h1>
+
+  <div class="global-actions">
+    <button id="goBackBtn" class="btn" onclick="goBackStage()">← Go Back</button>
+    <button id="newSequenceTopBtn" class="btn hidden global-actions-center" onclick="location.reload()">↺ New Sequence</button>
+    <button id="themeToggleBtn" class="btn" onclick="toggleTheme()">☀ Light Theme</button>
   </div>
-  <span class="badge">Border Threat Detection</span>
-  <span class="badge live" id="statusBadge">Idle</span>
-</nav>
 
-<!-- STAGE INDICATOR -->
-<div class="stages">
-  <div class="stage-dot active" id="s1dot"><div class="dot"></div>Upload</div>
-  <span class="stage-sep">›</span>
-  <div class="stage-dot" id="s2dot"><div class="dot"></div>Define Zone</div>
-  <span class="stage-sep">›</span>
-  <div class="stage-dot" id="s3dot"><div class="dot"></div>Process</div>
-  <span class="stage-sep">›</span>
-  <div class="stage-dot" id="s4dot"><div class="dot"></div>Review</div>
-</div>
-
-<!-- ═══════════════ STAGE 1: UPLOAD ═══════════════ -->
-<div id="stage1" class="section">
-  <h1>Upload Surveillance Footage</h1>
-  <p class="sub">Upload any drone, CCTV, or aerial video. Supported: mp4, avi, mov, mkv</p>
-
-  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="1.5">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="17 8 12 3 7 8"/>
-      <line x1="12" y1="3" x2="12" y2="15"/>
-    </svg>
-    <p>Drag & drop video here or click to browse</p>
-    <small>mp4 · avi · mov · mkv</small>
-  </div>
-  <input type="file" id="fileInput" accept=".mp4,.avi,.mov,.mkv" class="hidden"/>
-  <div id="uploadProgress" class="hidden" style="margin-top:16px">
-    <div class="progress-text" id="uploadText">Uploading…</div>
-    <div class="progress-bar"><div class="progress-fill" id="uploadFill" style="width:0%"></div></div>
-  </div>
-</div>
-
-<!-- ═══════════════ STAGE 2: DEFINE ═══════════════ -->
-<div id="stage2" class="hidden section" style="max-width:820px">
-  <h1>Define Restricted Zone & Tripwire</h1>
-  <p class="sub">Draw on the first frame. Polygon = restricted area. Line = tripwire.</p>
-
-  <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-    <div class="tool-toggle">
-      <button class="tool-btn active" id="toolPolygon" onclick="setTool('polygon')">🔺 Polygon Zone</button>
-      <button class="tool-btn" id="toolLine" onclick="setTool('line')">━ Tripwire Line</button>
+  <div id="stage1" class="section landing"
+    style="display: flex; flex-direction: column; gap: 20px; max-width: 1800px; margin: 70px auto 0; padding: 0 170px; min-height: calc(100vh - 116px); justify-content: flex-start;">
+    <div class="landing-head">
+      <h1 class="landing-title">SENTINEL - AI</h1>
+      <p class="landing-desc">High-precision border and object detection using the YOLO26 architecture. Upload an image or video to begin spatial threat analysis.</p>
     </div>
-    <button class="btn sm" onclick="undoLast()">↩ Undo</button>
-    <button class="btn sm danger" onclick="clearCanvas()">🗑 Clear</button>
-    <button class="btn sm primary" onclick="confirmGeometry()">✓ Confirm & Preview</button>
-  </div>
 
-  <div id="toolHint" style="font-size:13px;color:#8b949e;margin-bottom:10px">
-    Click to place polygon corners. Double-click to close.
-  </div>
 
-  <div class="canvas-wrap" id="canvasWrap">
-    <img id="firstFrameImg" src="" alt="first frame" style="max-width:760px;width:100%"/>
-    <canvas id="drawCanvas"></canvas>
-  </div>
 
-  <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <span id="zoneStatus" style="font-size:13px;color:#8b949e">Zone: not drawn</span>
-    <span style="color:#30363d">|</span>
-    <span id="wireStatus" style="font-size:13px;color:#8b949e">Tripwire: not set</span>
-  </div>
+    <div class="landing-grid">
+      <!-- Left Column: Controls -->
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        
+        <!-- Upload Card -->
+        <div class="upload-card">
+          <div class="upload-card-tabs">
+            <button id="modeImageTab" class="upload-card-tab active" onclick="setInputType('image')">Image</button>
+            <button id="modeVideoTab" class="upload-card-tab" onclick="setInputType('video')">Video</button>
+          </div>
 
-  <div id="previewWrap" class="hidden" style="margin-top:16px">
-    <h2>Preview</h2>
-    <img id="previewImg" src="" alt="preview" style="width:100%;border-radius:6px"/>
-    <p style="font-size:12px;color:#8b949e;margin-top:6px">If this looks wrong, click Clear and redraw.</p>
-  </div>
+          <div class="upload-card-body" id="dropZoneCurrent">
+            <span class="type-badge" id="typeBadge">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Image
+            </span>
 
-  <div style="margin-top:20px">
-    <h2>Processing Options</h2>
-    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-      <label style="font-size:13px;color:#8b949e">Analyse every
-        <select id="frameSkip" style="margin:0 6px;background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:4px;padding:4px 8px;font-size:13px">
-          <option value="1">1st frame (slow)</option>
-          <option value="3" selected>3rd frame (balanced)</option>
-          <option value="5">5th frame (fast)</option>
-          <option value="10">10th frame (fastest)</option>
-        </select>
-      </label>
-    </div>
-    <button class="btn primary" onclick="startProcessing()" style="margin-top:14px;width:100%;padding:11px">
-      ▶ Process Video
-    </button>
-  </div>
-</div>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round" stroke-linejoin="round"
+              style="color: #6b7280; margin-bottom: 14px; pointer-events: none;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
 
-<!-- ═══════════════ STAGE 3: PROCESSING ═══════════════ -->
-<div id="stage3" class="hidden section">
-  <h1>Processing Video…</h1>
-  <p class="sub">Running YOLO + ByteTrack + threat engine on every frame.</p>
-  <div class="card" style="margin-top:24px">
-    <div class="progress-text" id="procText" style="margin-bottom:8px;font-size:14px">Starting…</div>
-    <div class="progress-bar" style="height:12px">
-      <div class="progress-fill" id="procFill" style="width:0%"></div>
-    </div>
-    <div id="procPct" style="margin-top:8px;font-size:13px;color:#8b949e;text-align:right">0%</div>
-  </div>
-</div>
+            <p id="dropText" style="font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); pointer-events: none;">Drop Image Here</p>
+            <span style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px; pointer-events: none;">- or -</span>
+            <span onclick="fileInputGlobal.click(); event.stopPropagation();"
+              style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); cursor: pointer;">
+              Click to Upload
+            </span>
+          </div>
 
-<!-- ═══════════════ STAGE 4: REVIEW ═══════════════ -->
-<div id="stage4" class="hidden app" style="height:calc(100vh - 96px)">
-  <div class="main">
+          <input type="file" id="fileInputGlobal" class="hidden" accept=".jpg,.png,image/jpeg,image/png" />
 
-    <!-- LEFT: video + tabs -->
-    <div class="left panel">
+          <!-- URL Section Integrated -->
+          <div style="display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);">
+            <input id="mediaUrlGlobal" class="text-input" type="url" placeholder="Paste image URL..." style="font-size:0.82rem; padding: 8px 12px; height: 36px;" />
+            <button class="btn primary" onclick="uploadFromLinkGlobal()" style="white-space: nowrap; font-size: 0.82rem; padding: 0 16px; height: 36px;">Connect</button>
+          </div>
 
-      <!-- Playback controls -->
-      <div class="playbar">
-        <button class="btn sm" onclick="jumpTo(0)">⏮</button>
-        <button class="btn sm primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
-        <button class="btn sm" onclick="jumpTo(totalFrames-1)">⏭</button>
-        <input type="range" id="scrubber" min="0" max="100" value="0" oninput="onScrub(this.value)"/>
-        <span class="timecode" id="timecode">0.0s / 0.0s</span>
-      </div>
-
-      <img id="videoFrame" src="" alt="frame"/>
-
-      <!-- Tabs -->
-      <div class="tabs" style="margin-top:18px">
-        <div class="tab active" onclick="switchTab('log')">📋 Alert Log</div>
-        <div class="tab" onclick="switchTab('heatmap')">🔥 Heatmap</div>
-      </div>
-
-      <!-- Alert Log Tab -->
-      <div id="tabLog">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <span id="alertCount" style="font-size:13px;color:#8b949e"></span>
-          <button class="btn sm" onclick="exportCSV()">⬇ Export CSV</button>
+          <div class="upload-card-toolbar">
+            <button class="upload-tool-btn primary-tool" title="Upload file" onclick="fileInputGlobal.click()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </button>
+            <button class="upload-tool-btn" title="Use webcam (coming soon)" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+            </button>
+            <button class="upload-tool-btn" title="Paste from clipboard (coming soon)" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table class="alert-table">
-            <thead><tr>
-              <th>Time</th><th>Track</th><th>Class</th>
-              <th>Event</th><th>Direction</th><th>Threat</th><th>Conf</th><th></th>
-            </tr></thead>
-            <tbody id="alertTableBody"></tbody>
-          </table>
+
+        <!-- Engine Selector -->
+        <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+          <div>
+            <label class="block-label">Engine Selector</label>
+            <select id="modelSelect" class="text-input" style="padding: 12px 16px; font-size: 0.9rem;">
+              <option value="yolov8n">yolo26n.pt (Nano)</option>
+              <option value="yolov8s">yolo26s.pt (Small)</option>
+              <option value="yolov8m">yolo26m.pt (Medium)</option>
+              <option value="yolov8l">yolo26l.pt (Large)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block-label" id="confLabel">Confidence (0.25)</label>
+            <input type="range" min="0.1" max="1" step="0.05" value="0.25" id="confSlider"
+              style="width: 100%; accent-color: var(--accent); height: 6px;" />
+          </div>
+
+          <div id="frameSkipWrap" style="visibility: hidden;">
+            <label class="block-label">Analysis Rate (Frames)</label>
+            <div style="display: flex; align-items: center; gap: 16px; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+              <input type="range" min="1" max="60" step="1" value="3" id="frameSkipSlider"
+                style="flex: 1; accent-color: var(--accent); height: 6px;" oninput="syncSkip(this.value)" />
+              <input type="number" id="frameSkipValue" value="3" min="1" max="60"
+                style="width: 60px; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); padding: 4px 8px; text-align: center; font-weight: 700; font-family: monospace;"
+                oninput="syncSkip(this.value)" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Stable Primary Action -->
+        <button id="deployBtn" class="btn primary lg" onclick="triggerStage2()"
+          style="width: 100%; letter-spacing: 0.05em; font-weight: 700; border-radius: 12px; padding: 16px; font-size: 1rem;">
+          Process Picture
+        </button>
+      </div>
+
+      <!-- Right Column: Preview -->
+      <div style="display: flex; flex-direction: column; flex: 1;">
+        <div class="card"
+          style="padding: 0; flex: 1; display: flex; flex-direction: column; background: var(--bg-panel); overflow: hidden; min-height: 580px; position: relative;">
+
+          <button id="clearMediaBtn" class="hidden" onclick="clearMedia()"
+            style="position: absolute; top: 12px; right: 12px; z-index: 20; background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; transition: all 0.2s;">
+            ×
+          </button>
+
+          <div id="mediaPreviewPlaceholder"
+            style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: rgba(255,255,255,0.1); gap: 16px;">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+            </svg>
+            <span style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; color: rgba(255,255,255,0.4);">RESOURCE PREVIEW</span>
+          </div>
+
+          <div id="imagePreviewWrap" class="hidden" style="flex:1; display:flex; align-items:center; justify-content:center; background:#000;">
+            <img id="previewImageEl" src="" style="max-width:100%; max-height:100%; object-fit:contain;"/>
+          </div>
+
+          <div id="videoPreviewWrap" class="hidden" style="flex:1; display:flex; flex-direction:column; background:#000;">
+            <video id="previewVideoEl" style="flex:1; width:100%; object-fit:contain; min-height:0;" preload="metadata"></video>
+            <div class="preview-player">
+              <button id="vidPlayBtn" onclick="togglePreviewPlay()" style="background:none; border:none; color:#fff; cursor:pointer; padding:0; display:flex; align-items:center;">
+                <svg id="vidPlayIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+              </button>
+              <span id="vidCurrentTime" style="font-size:0.8rem; color:#fff; min-width:35px; text-align:center;">0:00</span>
+              <input id="vidSeekSlider" class="preview-slider" type="range" min="0" max="0" value="0" step="0.01" oninput="seekPreviewVideoRange(this.value)" />
+              <span id="vidDuration" style="font-size:0.8rem; color:#fff; min-width:35px; text-align:center;">0:00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+
+  <!-- Hidden progress indicator -->
+  <div id="uploadProgress" class="hidden" style="margin-top: 8px;">
+    <div id="uploadText" style="font-size: 0.85rem; margin-bottom: 8px; color: var(--accent);">Synchronizing Resource...
+    </div>
+    <div style="height: 2px; background: var(--border); overflow: hidden;">
+      <div id="uploadFill" style="height: 100%; background: var(--accent); transition: width 0.3s ease; width: 0%;">
+      </div>
+    </div>
+  </div>
+  </div>
+
+
+
+  <!-- ═══════════════ STAGE 2: DEFINE ═══════════════ -->
+  <div id="stage2" class="hidden section" style="max-width:1800px; padding:0 170px; margin:64px auto 0;">
+    <div style="border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 24px;">
+      <h1 style="font-size: 1.9rem; margin-bottom: 8px;">Spatial Configuration</h1>
+      <p style="font-size: 1.05rem; color: var(--text-secondary);">Define restricted zones and tripwires for neural
+        monitoring.</p>
+    </div>
+
+    <div class="stage2-grid">
+      <div class="stage2-card">
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <div class="draw-tool-group">
+            <button class="draw-tool-btn" id="toolPolygon" onclick="setTool('polygon')">⬢ Zone</button>
+            <button class="draw-tool-btn" id="toolLine" onclick="setTool('line')">⎯ Line</button>
+          </div>
+          <div style="flex:1"></div>
+          <button class="btn sm" onclick="undoLast()">↩ Undo</button>
+          <button class="btn sm danger" onclick="clearCanvas()">🗑 Clear Canvas</button>
+          <button class="btn sm primary" onclick="confirmGeometry()">Confirm and Preview</button>
+        </div>
+
+        <div class="stage2-config-row">
+          <span class="stage2-pill">Confidence<strong id="stage2ConfidenceVal">0.25</strong></span>
+          <span class="stage2-pill">Frame Skip<strong id="stage2FrameSkipVal">3</strong></span>
+        </div>
+
+        <div id="toolHint" style="font-size: 14px; color: var(--accent); margin-bottom: 12px; font-weight: 600;">
+          Click to place polygon corners. Double-click to close.
+        </div>
+
+        <div class="canvas-wrap stage2-media-box" id="canvasWrap">
+          <img id="firstFrameImg" src="" alt="first frame" />
+          <canvas id="drawCanvas"></canvas>
+        </div>
+
+        <div style="margin-top:16px; display:flex; gap:16px;">
+          <span id="zoneStatus" style="font-size:14px; color:var(--text-secondary)">Zone: not drawn</span>
+          <span id="wireStatus" style="font-size:14px; color:var(--text-secondary)">Tripwire: not set</span>
+        </div>
+
+        <div style="margin-top: 28px; display: flex; justify-content: flex-end;">
+          <button id="processBtn" class="btn primary" onclick="startProcessing()" style="padding: 12px 48px;">
+            ▶ Process Video
+          </button>
         </div>
       </div>
 
-      <!-- Heatmap Tab -->
-      <div id="tabHeatmap" class="hidden">
-        <img id="heatmapImg" src="" alt="heatmap"/>
-        <div id="statsWrap"></div>
+      <div class="stage2-card">
+        <h2 style="font-size: 1rem; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">Preview</h2>
+        <div class="stage2-preview-shell">
+          <div id="previewWrap" class="hidden">
+            <div class="stage2-media-box">
+              <img id="previewImg" src="" alt="preview" style="width:100%; height:100%; object-fit:contain; display: block;" />
+            </div>
+          </div>
+          <div id="previewEmpty" class="stage2-preview-empty">
+            Confirm and preview to see the restricted zone and tripwire overlay.
+          </div>
+        </div>
       </div>
     </div>
-
-    <!-- RIGHT: detection panel -->
-    <div class="right panel">
-      <h2>Live Detections</h2>
-      <div id="detCounts" class="card" style="padding:12px"></div>
-
-      <div style="margin-top:6px">
-        <div class="metric-row" id="summaryMetrics"></div>
-      </div>
-
-      <h2 style="margin-top:14px">Frame Alerts</h2>
-      <div id="frameAlerts"></div>
-
-      <div style="margin-top:auto;padding-top:16px">
-        <button class="btn sm" onclick="location.reload()" style="width:100%">↺ New Video</button>
-      </div>
-    </div>
-
   </div>
-</div>
 
-<script>
-// ── STATE ─────────────────────────────────────────────────────────────────────
-let stage         = 1
-let totalFrames   = 0
-let fps           = 25
-let currentFrame  = 0
-let isPlaying     = false
-let playTimer     = null
-let allAlerts     = []
+  <!-- ═══════════════ PROCESSING OVERLAY ═══════════════ -->
+  <div id="processingOverlay" class="hidden processing-overlay">
+    <div class="processing-overlay-card">
+      <div id="procText"
+        style="font-size: 0.8rem; color: var(--accent); letter-spacing: 0.1em; margin-bottom: 20px; font-weight: 700;">
+        EXECUTING INFERENCE...</div>
+      <div class="progress-bar" style="height: 4px; background: var(--bg-main); border-radius: 2px;">
+        <div class="progress-fill" id="procFill" style="width:0%; background: var(--accent); height: 100%;"></div>
+      </div>
+      <div id="procPct" style="margin-top: 20px; font-size: 2rem; font-weight: 300; color: #fff;">0%</div>
+    </div>
+  </div>
 
-// Drawing
-let tool          = 'polygon'   // 'polygon' | 'line'
-let polyPoints    = []          // current polygon points in canvas px
-let tripwireStart = null        // {x,y} in canvas px
-let tripwireEnd   = null        // {x,y} in canvas px
-let isDrawingLine = false
 
-let scaleX = 1, scaleY = 1     // canvas px → actual frame px
+  <!-- ═══════════════ STAGE 4: REVIEW ═══════════════ -->
+  <div id="stage4" class="hidden app" style="background: var(--bg-main);">
+    <div class="main">
 
-const THREAT_COLORS = {
-  LOW:'#3fb950', MEDIUM:'#e3b341', HIGH:'#f0883e', CRITICAL:'#f85149'
-}
+      <div class="review-col review-left">
 
-// ── STAGE NAVIGATION ──────────────────────────────────────────────────────────
-function setStage(n) {
-  stage = n
-  ;['stage1','stage2','stage3','stage4'].forEach((id,i) => {
-    document.getElementById(id).classList.toggle('hidden', i+1 !== n)
-  })
-  ;['s1dot','s2dot','s3dot','s4dot'].forEach((id,i) => {
-    const el = document.getElementById(id)
-    el.className = 'stage-dot' + (i+1 < n ? ' done' : i+1 === n ? ' active' : '')
-  })
-}
+        <div class="card review-video-card">
+          <img id="videoFrame" src="" alt="frame" />
+          <div class="review-player-bar">
+            <button class="btn sm" id="playBtn" onclick="togglePlay()" style="min-width: 80px;">▶ Play</button>
+            <input type="range" id="scrubber" min="0" max="100" value="0" oninput="onScrub(this.value)"
+              style="flex: 1; accent-color: var(--accent);" />
+            <span class="review-timecode" id="timecode">0.0s / 0.0s</span>
+          </div>
+        </div>
+      </div>
 
-// ── UPLOAD ────────────────────────────────────────────────────────────────────
-const dropZone   = document.getElementById('dropZone')
-const fileInput  = document.getElementById('fileInput')
+      <div class="review-col review-right">
 
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag') })
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'))
-dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('drag')
-  if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0])
-})
-fileInput.addEventListener('change', e => { if (e.target.files[0]) uploadFile(e.target.files[0]) })
+        <div class="card review-card">
+          <h2>Intrusion Objects and Classification</h2>
+          <div id="detCounts" style="padding:2px 4px;"></div>
+          <div id="summaryMetrics"></div>
+        </div>
 
-async function uploadFile(file) {
-  document.getElementById('uploadProgress').classList.remove('hidden')
-  document.getElementById('uploadFill').style.width = '30%'
-  document.getElementById('uploadText').textContent = 'Uploading ' + file.name + '…'
+        <div class="review-switch-wrap">
+          <div class="mode-tabs" style="margin-bottom: 0;">
+            <button class="mode-tab active" id="tabLogBtn" onclick="switchTab('log')">Timestamp Timeline</button>
+            <button class="mode-tab" id="tabHeatmapBtn" onclick="switchTab('heatmap')">Heat Zone View</button>
+          </div>
 
-  const fd = new FormData()
-  fd.append('video', file)
+          <div id="tabLog" class="card timeline-card">
+            <div class="timeline-head">
+              <h2 style="margin: 0; font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary);">Intrusion Timeline</h2>
+              <span id="alertCount" style="font-size:11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;"></span>
+              <button class="btn sm" onclick="exportCSV()" style="font-size: 11px;">Export (.csv)</button>
+            </div>
 
-  const res  = await fetch('/upload', { method:'POST', body:fd })
-  const data = await res.json()
-  if (data.error) { alert(data.error); return }
+            <div class="timeline-table-wrap">
+              <table class="alert-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead style="position: sticky; top: 0; background: var(--bg-panel); z-index: 10;">
+                  <tr style="text-align: left; color: var(--text-secondary); border-bottom: 1px solid var(--border);">
+                    <th style="padding: 10px;">Time</th>
+                    <th style="padding: 10px;">Frame</th>
+                    <th style="padding: 10px;">ID</th>
+                    <th style="padding: 10px;">Label</th>
+                    <th style="padding: 10px;">Threat</th>
+                    <th style="padding: 10px;">Conf</th>
+                    <th style="padding: 10px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="alertTableBody"></tbody>
+              </table>
+            </div>
+          </div>
 
-  document.getElementById('uploadFill').style.width = '100%'
+          <div id="tabHeatmap" class="card timeline-card hidden">
+            <h2 style="margin: 0 0 10px; font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary);">Heat Zone Analytics</h2>
+            <img id="heatmapImg" src="" alt="heatmap" style="width: 100%; max-height: 280px; object-fit: contain; display: block; border-radius: 8px; background: #000;" />
+            <div id="statsWrap" style="margin-top: 12px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-  fps         = data.fps
-  totalFrames = data.total_frames
 
-  // set up drawing canvas
-  const img = document.getElementById('firstFrameImg')
-  img.src   = 'data:image/jpeg;base64,' + data.first_frame
-  img.onload = () => {
-    const w = img.clientWidth  || img.naturalWidth
-    const h = img.clientHeight || img.naturalHeight
-    scaleX = data.width  / w
-    scaleY = data.height / h
-    initCanvas(w, h)
-  }
+  <script>
+    // ── STATE ─────────────────────────────────────────────────────────────────────
+    let stage = 1
+    let totalFrames = 0
+    let fps = 25
+    let currentFrame = 0
+    let isPlaying = false
+    let playTimer = null
+    let allAlerts = []
+    let localPreviewVideoUrl = null
+    let stageHistory = [1]
+    let isLightTheme = false
 
-  document.getElementById('statusBadge').textContent = `${data.total_frames} frames · ${data.fps}fps`
-  setStage(2)
-}
+    // Drawing
+    let tool = 'polygon'   // 'polygon' | 'line'
+    let polyPoints = []          // current polygon points in canvas px
+    let tripwireStart = null        // {x,y} in canvas px
+    let tripwireEnd = null        // {x,y} in canvas px
+    let isDrawingLine = false
 
-// ── DRAWING CANVAS ────────────────────────────────────────────────────────────
-function initCanvas(w, h) {
-  const cvs = document.getElementById('drawCanvas')
-  cvs.width  = w
-  cvs.height = h
-  cvs.style.width  = w + 'px'
-  cvs.style.height = h + 'px'
+    let scaleX = 1, scaleY = 1     // canvas px → actual frame px
+    let stage2SourceWidth = 0
+    let stage2SourceHeight = 0
+    let stage2ResizeBound = false
+    let procTargetProgress = 0
+    let procDisplayProgress = 0
+    let procAnimHandle = null
+    let procPollHandle = null
 
-  cvs.onmousedown = startDraw
-  cvs.onmousemove = duringDraw
-  cvs.onmouseup   = endDraw
-  cvs.ondblclick  = closePoly
-
-  redraw()
-}
-
-function canvasXY(e) {
-  const r = document.getElementById('drawCanvas').getBoundingClientRect()
-  return { x: e.clientX - r.left, y: e.clientY - r.top }
-}
-
-function startDraw(e) {
-  const {x,y} = canvasXY(e)
-  if (tool === 'polygon') {
-    polyPoints.push({x,y})
-    redraw()
-  } else {
-    isDrawingLine = true
-    tripwireStart = {x,y}
-    tripwireEnd   = {x,y}
-  }
-}
-
-function duringDraw(e) {
-  if (tool === 'line' && isDrawingLine) {
-    tripwireEnd = canvasXY(e)
-    redraw()
-  }
-}
-
-function endDraw(e) {
-  if (tool === 'line' && isDrawingLine) {
-    tripwireEnd   = canvasXY(e)
-    isDrawingLine = false
-    redraw()
-    updateStatus()
-  }
-}
-
-function closePoly() {
-  if (tool === 'polygon' && polyPoints.length >= 3) {
-    redraw(true)
-    updateStatus()
-  }
-}
-
-function redraw(closed=false) {
-  const cvs = document.getElementById('drawCanvas')
-  const ctx = cvs.getContext('2d')
-  ctx.clearRect(0, 0, cvs.width, cvs.height)
-
-  // polygon
-  if (polyPoints.length > 0) {
-    ctx.beginPath()
-    ctx.moveTo(polyPoints[0].x, polyPoints[0].y)
-    polyPoints.forEach(p => ctx.lineTo(p.x, p.y))
-    if (closed) ctx.closePath()
-    ctx.strokeStyle = '#f85149'
-    ctx.lineWidth   = 2
-    ctx.stroke()
-    if (closed) {
-      ctx.fillStyle = 'rgba(248,81,73,0.15)'
-      ctx.fill()
+    const THREAT_COLORS = {
+      LOW: '#3fb950', MEDIUM: '#e3b341', HIGH: '#f0883e', CRITICAL: '#f85149'
     }
-    polyPoints.forEach((p,i) => {
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, 5, 0, Math.PI*2)
-      ctx.fillStyle = i===0 ? '#f85149' : '#58a6ff'
-      ctx.fill()
+
+    // ── STAGE NAVIGATION ──────────────────────────────────────────────────────────
+    // ── STAGE NAVIGATION ──────────────────────────────────────────────────────────
+    function setStage(n, options = {}) {
+      const pushHistory = options.pushHistory !== false
+      stage = n
+        ;['stage1', 'stage2', 'stage3', 'stage4'].forEach((id, i) => {
+          const el = document.getElementById(id)
+          if (el) el.classList.toggle('hidden', i + 1 !== n)
+        })
+
+      const newSeqBtn = document.getElementById('newSequenceTopBtn')
+      if (newSeqBtn) newSeqBtn.classList.toggle('hidden', n !== 4)
+
+      if (pushHistory && stageHistory[stageHistory.length - 1] !== n) {
+        stageHistory.push(n)
+      }
+
+      if (n === 2) {
+        requestAnimationFrame(layoutStage2Canvas)
+      } else {
+        hideProcessingOverlay()
+      }
+
+      updateBackButtonState()
+    }
+
+    function showProcessingOverlay() {
+      const el = document.getElementById('processingOverlay')
+      if (!el) return
+      procTargetProgress = 0
+      procDisplayProgress = 0
+      renderProcessingProgress(0)
+      document.getElementById('procText').textContent = 'EXECUTING INFERENCE...'
+      el.classList.remove('hidden')
+      startProcessingAnimation()
+    }
+
+    function hideProcessingOverlay() {
+      const el = document.getElementById('processingOverlay')
+      if (!el) return
+      el.classList.add('hidden')
+      stopProcessingAnimation()
+      if (procPollHandle) {
+        clearInterval(procPollHandle)
+        procPollHandle = null
+      }
+    }
+
+    function renderProcessingProgress(pct) {
+      const safePct = Math.max(0, Math.min(100, pct))
+      document.getElementById('procFill').style.width = safePct.toFixed(1) + '%'
+      document.getElementById('procPct').textContent = Math.round(safePct) + '%'
+    }
+
+    function startProcessingAnimation() {
+      stopProcessingAnimation()
+
+      const tick = () => {
+        const gap = procTargetProgress - procDisplayProgress
+        if (gap > 0) {
+          const step = Math.max(0.2, Math.min(2.2, gap * 0.18))
+          procDisplayProgress = Math.min(procTargetProgress, procDisplayProgress + step)
+          renderProcessingProgress(procDisplayProgress)
+        }
+        procAnimHandle = requestAnimationFrame(tick)
+      }
+
+      procAnimHandle = requestAnimationFrame(tick)
+    }
+
+    function stopProcessingAnimation() {
+      if (procAnimHandle) {
+        cancelAnimationFrame(procAnimHandle)
+        procAnimHandle = null
+      }
+    }
+
+    async function settleProcessingProgress(maxWaitMs = 900) {
+      const started = Date.now()
+      while (procDisplayProgress < 99 && Date.now() - started < maxWaitMs) {
+        await new Promise(resolve => setTimeout(resolve, 40))
+      }
+    }
+
+    function goBackStage() {
+      if (stage === 4) stopPlay()
+
+      if (stageHistory.length > 1) {
+        stageHistory.pop()
+        const previous = stageHistory[stageHistory.length - 1]
+        setStage(previous, { pushHistory: false })
+        return
+      }
+
+      if (window.history.length > 1) {
+        window.history.back()
+      }
+    }
+
+    function updateBackButtonState() {
+      const backBtn = document.getElementById('goBackBtn')
+      if (!backBtn) return
+      const canGoBack = stageHistory.length > 1 || window.history.length > 1
+      backBtn.style.opacity = canGoBack ? '1' : '0.6'
+    }
+
+    function applyTheme(lightMode) {
+      isLightTheme = lightMode
+      document.body.classList.toggle('light-theme', lightMode)
+      const themeBtn = document.getElementById('themeToggleBtn')
+      if (themeBtn) {
+        themeBtn.textContent = lightMode ? '🌙 Dark Theme' : '☀ Light Theme'
+      }
+      localStorage.setItem('sentinel_theme', lightMode ? 'light' : 'dark')
+    }
+
+    function toggleTheme() {
+      applyTheme(!isLightTheme)
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem('sentinel_theme')
+      applyTheme(saved === 'light')
+    }
+
+    function triggerStage2() {
+      if (totalFrames > 0) {
+        updateStage2ConfigSummary()
+        updateStage2ModeCopy()
+        setStage(2)
+      } else {
+        alert('Please upload a resource or connect via link first.')
+      }
+    }
+
+
+    // ── UPLOAD ────────────────────────────────────────────────────────────────────
+    const fileInputGlobal = document.getElementById('fileInputGlobal')
+    const dropZoneCurrent = document.getElementById('dropZoneCurrent')
+    const modelSelect = document.getElementById('modelSelect')
+
+    let inputType = 'video'   // 'image' | 'video'
+
+    // Initialize events
+    function initLandingEvents() {
+      dropZoneCurrent.addEventListener('click', () => fileInputGlobal.click())
+      dropZoneCurrent.addEventListener('dragover', e => { e.preventDefault(); dropZoneCurrent.classList.add('drag') })
+      dropZoneCurrent.addEventListener('dragleave', () => dropZoneCurrent.classList.remove('drag'))
+      dropZoneCurrent.addEventListener('drop', e => {
+        e.preventDefault()
+        dropZoneCurrent.classList.remove('drag')
+        if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0])
+      })
+      fileInputGlobal.addEventListener('change', e => {
+        if (e.target.files[0]) uploadFile(e.target.files[0])
+      })
+    }
+
+    function triggerFileSelect() { fileInputGlobal.click() }
+
+    function getAllowedExtensionsLabel() {
+      return inputType === 'video' ? '.mp4' : '.jpg, .png'
+    }
+
+    function isAllowedFileForInputType(file) {
+      const name = (file?.name || '').toLowerCase()
+      const type = (file?.type || '').toLowerCase()
+
+      if (inputType === 'video') {
+        return name.endsWith('.mp4') || type === 'video/mp4'
+      }
+
+      return name.endsWith('.jpg') || name.endsWith('.png') || type === 'image/jpeg' || type === 'image/png'
+    }
+
+    function isAllowedUrlForInputType(url) {
+      const clean = (url || '').split('?')[0].toLowerCase()
+      if (inputType === 'video') return clean.endsWith('.mp4')
+      return clean.endsWith('.jpg') || clean.endsWith('.png')
+    }
+
+    function updateStage2ModeCopy() {
+      const processBtn = document.getElementById('processBtn')
+      if (processBtn) {
+        processBtn.innerHTML = inputType === 'image' ? '▶ Process Image' : '▶ Process Video'
+      }
+    }
+
+    function setInputType(type) {
+      inputType = type
+      // Sync inner card tabs
+      document.getElementById('modeImageTab').classList.toggle('active', type === 'image')
+      document.getElementById('modeVideoTab').classList.toggle('active', type === 'video')
+
+      const dropText = document.getElementById('dropText')
+      const badge = document.getElementById('typeBadge')
+      const urlInput = document.getElementById('mediaUrlGlobal')
+      const deployBtn = document.getElementById('deployBtn')
+      const fileInput = document.getElementById('fileInputGlobal')
+
+      if (type === 'image') {
+        dropText.textContent = 'Drop Image Here'
+        urlInput.placeholder = 'Paste image URL...'
+        document.getElementById('frameSkipWrap').style.visibility = 'hidden'
+        if (fileInput) fileInput.setAttribute('accept', '.jpg,.png,image/jpeg,image/png')
+        badge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Image`
+        deployBtn.textContent = 'Process Picture'
+      } else {
+        dropText.textContent = 'Drop Video Here'
+        urlInput.placeholder = 'Paste video URL...'
+        document.getElementById('frameSkipWrap').style.visibility = 'visible'
+        if (fileInput) fileInput.setAttribute('accept', '.mp4,video/mp4')
+        badge.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg> Video`
+        deployBtn.textContent = 'Process Video'
+      }
+
+      updateStage2ModeCopy()
+      updateStage2ConfigSummary()
+    }
+
+
+    function setSkip(val) {
+      syncSkip(val)
+    }
+
+    function syncSkip(val) {
+      document.getElementById('frameSkipSlider').value = val
+      document.getElementById('frameSkipValue').value = val
+      updateStage2ConfigSummary()
+    }
+
+    function getConfidenceThreshold() {
+      const slider = document.getElementById('confSlider')
+      const parsed = parseFloat(slider?.value)
+      if (Number.isNaN(parsed)) return 0.25
+      return Math.max(0, Math.min(1, parsed))
+    }
+
+    function getStage2FrameSkipValue() {
+      if (inputType === 'image') return '1 (image)'
+      const raw = parseInt(document.getElementById('frameSkipValue')?.value || '3', 10)
+      return String(Number.isNaN(raw) ? 3 : raw)
+    }
+
+    function updateStage2ConfigSummary() {
+      const conf = getConfidenceThreshold().toFixed(2)
+      const confEl = document.getElementById('stage2ConfidenceVal')
+      const skipEl = document.getElementById('stage2FrameSkipVal')
+      if (confEl) confEl.textContent = conf
+      if (skipEl) skipEl.textContent = getStage2FrameSkipValue()
+    }
+
+
+
+
+    async function parseApiResponse(res) {
+      const contentType = (res.headers.get('content-type') || '').toLowerCase()
+      const bodyText = await res.text()
+
+      if (contentType.includes('application/json')) {
+        try {
+          return JSON.parse(bodyText)
+        } catch (_err) {
+          return { error: 'Server returned invalid JSON.' }
+        }
+      }
+
+      if (!res.ok) {
+        const shortBody = bodyText.slice(0, 220).replace(/\s+/g, ' ').trim()
+        return { error: `Request failed (${res.status}): ${shortBody || 'No response body'}` }
+      }
+
+      return { error: 'Unexpected response format from server.' }
+    }
+
+    async function requestJson(url, options = {}) {
+      const res = await fetch(url, options)
+      const data = await parseApiResponse(res)
+      if (data.error) throw new Error(data.error)
+      return data
+    }
+
+    async function uploadFromLinkGlobal() {
+      const url = (document.getElementById('mediaUrlGlobal').value || '').trim()
+      const modelType = document.getElementById('modelSelect').value
+      if (!url) {
+        alert('Paste a valid media URL first.')
+        return
+      }
+
+      if (!isAllowedUrlForInputType(url)) {
+        alert(`Only ${getAllowedExtensionsLabel()} links are allowed in ${inputType} mode.`)
+        return
+      }
+
+      document.getElementById('uploadProgress').classList.remove('hidden')
+      document.getElementById('uploadFill').style.width = '35%'
+      document.getElementById('uploadText').textContent = 'Fetching media from link...'
+
+      try {
+        const res = await fetch('/upload_link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            input_type: inputType,
+            model_type: modelType,
+            conf_threshold: getConfidenceThreshold(),
+          }),
+        })
+        const data = await parseApiResponse(res)
+        if (data.error) {
+          alert(data.error)
+          document.getElementById('uploadProgress').classList.add('hidden')
+          return
+        }
+        handleLoadedMedia(data)
+      } catch (err) {
+        alert('Network error during fetch: ' + err.message)
+        document.getElementById('uploadProgress').classList.add('hidden')
+      }
+    }
+
+
+    function handleLoadedMedia(data, localVideoUrl = null) {
+      document.getElementById('uploadProgress').classList.add('hidden')
+
+      fps = data.fps
+      totalFrames = data.total_frames
+      if (data.media_type) setInputType(data.media_type)
+
+      const placeholder = document.getElementById('mediaPreviewPlaceholder')
+      const imgWrap = document.getElementById('imagePreviewWrap')
+      const vidWrap = document.getElementById('videoPreviewWrap')
+      const clearBtn = document.getElementById('clearMediaBtn')
+
+      placeholder.classList.add('hidden')
+      clearBtn.classList.remove('hidden')
+
+      if (data.media_type === 'image') {
+        imgWrap.classList.remove('hidden')
+        vidWrap.classList.add('hidden')
+        document.getElementById('previewImageEl').src = 'data:image/jpeg;base64,' + data.first_frame
+      } else {
+        imgWrap.classList.add('hidden')
+        vidWrap.classList.remove('hidden')
+        const vid = document.getElementById('previewVideoEl')
+        vid.removeAttribute('src')
+        vid.load()
+        if (localVideoUrl) {
+          vid.src = localVideoUrl
+        } else {
+          // Try to set video src from server for link uploads.
+          requestJson('/get_video_src').then(d => {
+            if (d.url) vid.src = d.url
+            else throw new Error('No video URL available')
+          }).catch(() => {
+            // fallback: show first frame as still image overlay
+            imgWrap.classList.remove('hidden')
+            vidWrap.classList.add('hidden')
+            document.getElementById('previewImageEl').src = 'data:image/jpeg;base64,' + data.first_frame
+          })
+        }
+        // Wire up player events
+        vid.ontimeupdate = () => {
+          const cur = vid.currentTime
+          const dur = vid.duration || 1
+          const seek = document.getElementById('vidSeekSlider')
+          seek.max = String(dur)
+          seek.value = String(cur)
+          document.getElementById('vidCurrentTime').textContent = fmtTime(cur)
+        }
+        vid.onloadedmetadata = () => {
+          const dur = vid.duration || 0
+          const seek = document.getElementById('vidSeekSlider')
+          seek.max = String(dur)
+          seek.value = '0'
+          document.getElementById('vidDuration').textContent = fmtTime(vid.duration)
+        }
+        vid.onended = () => {
+          document.getElementById('vidPlayIcon').innerHTML = '<path d="M5 3l14 9-14 9V3z"/>'
+        }
+      }
+
+      // reset drawing state for new media
+      polyPoints = []
+      tripwireStart = null
+      tripwireEnd = null
+      updateStatus()
+
+      // set up drawing canvas for Stage 2
+      const img = document.getElementById('firstFrameImg')
+      img.src = 'data:image/jpeg;base64,' + data.first_frame
+      img.onload = () => {
+        stage2SourceWidth = data.width
+        stage2SourceHeight = data.height
+
+        if (!stage2ResizeBound) {
+          window.addEventListener('resize', () => {
+            if (stage === 2) layoutStage2Canvas()
+          })
+          stage2ResizeBound = true
+        }
+
+        if (stage === 2) {
+          requestAnimationFrame(layoutStage2Canvas)
+        }
+      }
+    }
+
+    function clearMedia() {
+      const placeholder = document.getElementById('mediaPreviewPlaceholder')
+      const imgWrap = document.getElementById('imagePreviewWrap')
+      const vidWrap = document.getElementById('videoPreviewWrap')
+      const clearBtn = document.getElementById('clearMediaBtn')
+      const vid = document.getElementById('previewVideoEl')
+
+      vid.pause()
+      vid.src = ''
+      vid.load()
+      if (localPreviewVideoUrl) {
+        URL.revokeObjectURL(localPreviewVideoUrl)
+        localPreviewVideoUrl = null
+      }
+      document.getElementById('previewImageEl').src = ''
+      imgWrap.classList.add('hidden')
+      vidWrap.classList.add('hidden')
+      placeholder.classList.remove('hidden')
+      clearBtn.classList.add('hidden')
+      document.getElementById('vidSeekSlider').value = '0'
+      document.getElementById('vidSeekSlider').max = '0'
+      document.getElementById('vidCurrentTime').textContent = '0:00'
+      document.getElementById('vidDuration').textContent = '0:00'
+      document.getElementById('vidPlayIcon').innerHTML = '<path d="M5 3l14 9-14 9V3z"/>'
+
+      // Reset upload state
+      totalFrames = 0
+      stage2SourceWidth = 0
+      stage2SourceHeight = 0
+      document.getElementById('fileInputGlobal').value = ''
+      document.getElementById('mediaUrlGlobal').value = ''
+      document.getElementById('firstFrameImg').src = ''
+      initCanvas(0, 0)
+    }
+
+    function togglePreviewPlay() {
+      const vid = document.getElementById('previewVideoEl')
+      const icon = document.getElementById('vidPlayIcon')
+      if (vid.paused) {
+        vid.play()
+        icon.innerHTML = '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>'
+      } else {
+        vid.pause()
+        icon.innerHTML = '<path d="M5 3l14 9-14 9V3z"/>'
+      }
+    }
+
+    function seekPreviewVideoRange(value) {
+      const vid = document.getElementById('previewVideoEl')
+      const sec = parseFloat(value)
+      if (!Number.isNaN(sec) && vid.duration) vid.currentTime = sec
+    }
+
+    function fmtTime(s) {
+      const m = Math.floor(s / 60)
+      const ss = Math.floor(s % 60).toString().padStart(2, '0')
+      return `${m}:${ss}`
+    }
+
+
+
+    async function uploadFile(file) {
+      const modelType = document.getElementById('modelSelect').value
+      if (!isAllowedFileForInputType(file)) {
+        alert(`Invalid file type. Please upload only ${getAllowedExtensionsLabel()} files in ${inputType} mode.`)
+        document.getElementById('fileInputGlobal').value = ''
+        return
+      }
+
+      if (localPreviewVideoUrl) {
+        URL.revokeObjectURL(localPreviewVideoUrl)
+        localPreviewVideoUrl = null
+      }
+      if (file && (inputType === 'video' || (file.type || '').startsWith('video/'))) {
+        localPreviewVideoUrl = URL.createObjectURL(file)
+      }
+
+      document.getElementById('uploadProgress').classList.remove('hidden')
+      document.getElementById('uploadFill').style.width = '30%'
+      document.getElementById('uploadText').textContent = 'Uploading ' + file.name + '…'
+
+      const fd = new FormData()
+      fd.append('media', file)
+      fd.append('video', file)
+      fd.append('input_type', inputType)
+      fd.append('model_type', modelType)
+      fd.append('conf_threshold', String(getConfidenceThreshold()))
+
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: fd })
+        const data = await parseApiResponse(res)
+        if (data.error) {
+          alert(data.error)
+          document.getElementById('uploadProgress').classList.add('hidden')
+          if (localPreviewVideoUrl) {
+            URL.revokeObjectURL(localPreviewVideoUrl)
+            localPreviewVideoUrl = null
+          }
+          return
+        }
+        handleLoadedMedia(data, localPreviewVideoUrl)
+      } catch (err) {
+        alert('Upload error: ' + err.message)
+        document.getElementById('uploadProgress').classList.add('hidden')
+        if (localPreviewVideoUrl) {
+          URL.revokeObjectURL(localPreviewVideoUrl)
+          localPreviewVideoUrl = null
+        }
+      }
+    }
+
+
+    // ── DRAWING CANVAS ────────────────────────────────────────────────────────────
+    function initCanvas(w, h, offsetX = 0, offsetY = 0) {
+      const cvs = document.getElementById('drawCanvas')
+      cvs.width = w
+      cvs.height = h
+      cvs.style.width = w + 'px'
+      cvs.style.height = h + 'px'
+      cvs.style.left = offsetX + 'px'
+      cvs.style.top = offsetY + 'px'
+
+      cvs.onmousedown = startDraw
+      cvs.onmousemove = duringDraw
+      cvs.onmouseup = endDraw
+      cvs.ondblclick = closePoly
+
+      redraw()
+    }
+
+    function layoutStage2Canvas() {
+      if (!stage2SourceWidth || !stage2SourceHeight) return
+
+      const wrap = document.getElementById('canvasWrap')
+      const img = document.getElementById('firstFrameImg')
+      if (!wrap || !img) return
+
+      const wrapW = wrap.clientWidth
+      const wrapH = wrap.clientHeight
+      if (!wrapW || !wrapH) return
+
+      const fitScale = Math.min(wrapW / stage2SourceWidth, wrapH / stage2SourceHeight)
+      const drawW = Math.max(1, Math.round(stage2SourceWidth * fitScale))
+      const drawH = Math.max(1, Math.round(stage2SourceHeight * fitScale))
+      const offX = Math.floor((wrapW - drawW) / 2)
+      const offY = Math.floor((wrapH - drawH) / 2)
+
+      img.style.width = drawW + 'px'
+      img.style.height = drawH + 'px'
+      img.style.left = offX + 'px'
+      img.style.top = offY + 'px'
+
+      scaleX = stage2SourceWidth / drawW
+      scaleY = stage2SourceHeight / drawH
+      initCanvas(drawW, drawH, offX, offY)
+    }
+
+    function canvasXY(e) {
+      const r = document.getElementById('drawCanvas').getBoundingClientRect()
+      return { x: e.clientX - r.left, y: e.clientY - r.top }
+    }
+
+    function startDraw(e) {
+      const { x, y } = canvasXY(e)
+      if (tool === 'polygon') {
+        polyPoints.push({ x, y })
+        redraw()
+      } else {
+        isDrawingLine = true
+        tripwireStart = { x, y }
+        tripwireEnd = { x, y }
+      }
+    }
+
+    function duringDraw(e) {
+      if (tool === 'line' && isDrawingLine) {
+        tripwireEnd = canvasXY(e)
+        redraw()
+      }
+    }
+
+    function endDraw(e) {
+      if (tool === 'line' && isDrawingLine) {
+        tripwireEnd = canvasXY(e)
+        isDrawingLine = false
+        redraw()
+        updateStatus()
+      }
+    }
+
+    function closePoly() {
+      if (tool === 'polygon' && polyPoints.length >= 3) {
+        redraw(true)
+        updateStatus()
+      }
+    }
+
+    function redraw(closed = false) {
+      const cvs = document.getElementById('drawCanvas')
+      const ctx = cvs.getContext('2d')
+      ctx.clearRect(0, 0, cvs.width, cvs.height)
+
+      // polygon
+      if (polyPoints.length > 0) {
+        ctx.beginPath()
+        ctx.moveTo(polyPoints[0].x, polyPoints[0].y)
+        polyPoints.forEach(p => ctx.lineTo(p.x, p.y))
+        if (closed) ctx.closePath()
+        ctx.strokeStyle = '#f85149'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        if (closed) {
+          ctx.fillStyle = 'rgba(248,81,73,0.15)'
+          ctx.fill()
+        }
+        polyPoints.forEach((p, i) => {
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, 5, 0, Math.PI * 2)
+          ctx.fillStyle = i === 0 ? '#f85149' : '#58a6ff'
+          ctx.fill()
+        })
+      }
+
+      // tripwire
+      if (tripwireStart && tripwireEnd) {
+        ctx.beginPath()
+        ctx.moveTo(tripwireStart.x, tripwireStart.y)
+        ctx.lineTo(tripwireEnd.x, tripwireEnd.y)
+        ctx.strokeStyle = '#f0883e'
+        ctx.lineWidth = 2.5
+        ctx.setLineDash([8, 4])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+    }
+
+    function setTool(t) {
+      tool = t
+      document.getElementById('toolPolygon').classList.toggle('active', t === 'polygon')
+      document.getElementById('toolLine').classList.toggle('active', t === 'line')
+      document.getElementById('toolHint').textContent = t === 'polygon'
+        ? 'Click to place polygon corners. Double-click to close the shape.'
+        : 'Click and drag to draw the tripwire line.'
+    }
+
+    // Slider logic
+    document.getElementById('confSlider')?.addEventListener('input', e => {
+      const val = parseFloat(e.target.value).toFixed(2)
+      document.getElementById('confLabel').textContent = `Confidence (${val})`
+      updateStage2ConfigSummary()
     })
-  }
 
-  // tripwire
-  if (tripwireStart && tripwireEnd) {
-    ctx.beginPath()
-    ctx.moveTo(tripwireStart.x, tripwireStart.y)
-    ctx.lineTo(tripwireEnd.x,   tripwireEnd.y)
-    ctx.strokeStyle = '#f0883e'
-    ctx.lineWidth   = 2.5
-    ctx.setLineDash([8,4])
-    ctx.stroke()
-    ctx.setLineDash([])
-  }
-}
 
-function setTool(t) {
-  tool = t
-  document.getElementById('toolPolygon').classList.toggle('active', t==='polygon')
-  document.getElementById('toolLine').classList.toggle('active', t==='line')
-  document.getElementById('toolHint').textContent = t === 'polygon'
-    ? 'Click to place polygon corners. Double-click to close the shape.'
-    : 'Click and drag to draw the tripwire line.'
-}
 
-function undoLast() {
-  if (tool === 'polygon') { polyPoints.pop(); redraw() }
-  else { tripwireStart = null; tripwireEnd = null; redraw() }
-  updateStatus()
-}
 
-function clearCanvas() {
-  polyPoints    = []
-  tripwireStart = null
-  tripwireEnd   = null
-  redraw()
-  updateStatus()
-  document.getElementById('previewWrap').classList.add('hidden')
-}
-
-function updateStatus() {
-  document.getElementById('zoneStatus').textContent =
-    polyPoints.length >= 3 ? `Zone: ${polyPoints.length} points ✓` : 'Zone: not drawn'
-  document.getElementById('zoneStatus').style.color =
-    polyPoints.length >= 3 ? '#3fb950' : '#8b949e'
-  document.getElementById('wireStatus').textContent =
-    (tripwireStart && tripwireEnd) ? 'Tripwire: set ✓' : 'Tripwire: not set'
-  document.getElementById('wireStatus').style.color =
-    (tripwireStart && tripwireEnd) ? '#3fb950' : '#8b949e'
-}
-
-async function confirmGeometry() {
-  if (polyPoints.length < 3 && !tripwireStart) {
-    alert('Draw a zone (polygon) or a tripwire line first.')
-    return
-  }
-
-  const zone = polyPoints.map(p => [Math.round(p.x*scaleX), Math.round(p.y*scaleY)])
-  const wire = tripwireStart
-    ? [[Math.round(tripwireStart.x*scaleX), Math.round(tripwireStart.y*scaleY)],
-       [Math.round(tripwireEnd.x*scaleX),   Math.round(tripwireEnd.y*scaleY)]]
-    : null
-
-  const res  = await fetch('/set_geometry', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ zone, tripwire:wire })
-  })
-  const data = await res.json()
-
-  document.getElementById('previewImg').src = 'data:image/jpeg;base64,' + data.preview
-  document.getElementById('previewWrap').classList.remove('hidden')
-}
-
-// ── PROCESSING ────────────────────────────────────────────────────────────────
-async function startProcessing() {
-  if (polyPoints.length < 3 && !tripwireStart) {
-    if (!confirm('No zone or tripwire drawn. Process anyway? (detections only, no alerts)')) return
-  }
-
-  // send geometry first
-  const zone = polyPoints.map(p => [Math.round(p.x*scaleX), Math.round(p.y*scaleY)])
-  const wire = tripwireStart
-    ? [[Math.round(tripwireStart.x*scaleX), Math.round(tripwireStart.y*scaleY)],
-       [Math.round(tripwireEnd.x*scaleX),   Math.round(tripwireEnd.y*scaleY)]]
-    : null
-  await fetch('/set_geometry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zone,tripwire:wire})})
-
-  setStage(3)
-
-  await fetch('/process', {method:'POST'})
-  pollProgress()
-}
-
-function pollProgress() {
-  const interval = setInterval(async () => {
-    const data = await fetch('/progress').then(r=>r.json())
-    document.getElementById('procFill').style.width = data.progress + '%'
-    document.getElementById('procPct').textContent  = data.progress + '%'
-    document.getElementById('procText').textContent = data.text || 'Processing…'
-
-    if (data.done) {
-      clearInterval(interval)
-      await loadReview()
-      setStage(4)
+    function undoLast() {
+      if (tool === 'polygon') { polyPoints.pop(); redraw() }
+      else { tripwireStart = null; tripwireEnd = null; redraw() }
+      updateStatus()
     }
-  }, 800)
-}
 
-// ── REVIEW ────────────────────────────────────────────────────────────────────
-async function loadReview() {
-  allAlerts = await fetch('/alerts').then(r=>r.json())
+    function clearCanvas() {
+      polyPoints = []
+      tripwireStart = null
+      tripwireEnd = null
+      redraw()
+      updateStatus()
+      document.getElementById('previewWrap').classList.add('hidden')
+      document.getElementById('previewEmpty')?.classList.remove('hidden')
+    }
 
-  document.getElementById('scrubber').max = totalFrames - 1
-  document.getElementById('alertCount').textContent = `${allAlerts.length} total alerts`
+    function updateStatus() {
+      document.getElementById('zoneStatus').textContent =
+        polyPoints.length >= 3 ? `Zone: ${polyPoints.length} points ✓` : 'Zone: not drawn'
+      document.getElementById('zoneStatus').style.color =
+        polyPoints.length >= 3 ? '#3fb950' : '#8b949e'
+      document.getElementById('wireStatus').textContent =
+        (tripwireStart && tripwireEnd) ? 'Tripwire: set ✓' : 'Tripwire: not set'
+      document.getElementById('wireStatus').style.color =
+        (tripwireStart && tripwireEnd) ? '#3fb950' : '#8b949e'
+    }
 
-  buildAlertTable()
-  loadSummaryMetrics()
-  await loadFrame(0)
-  await loadHeatmap()
-}
+    async function confirmGeometry() {
+      if (polyPoints.length < 3 && !tripwireStart) {
+        alert('Draw a zone (polygon) or a tripwire line first.')
+        return
+      }
 
-async function loadFrame(idx) {
-  currentFrame = Math.max(0, Math.min(idx, totalFrames-1))
-  document.getElementById('scrubber').value = currentFrame
+      const zone = polyPoints.map(p => [Math.round(p.x * scaleX), Math.round(p.y * scaleY)])
+      const wire = tripwireStart
+        ? [[Math.round(tripwireStart.x * scaleX), Math.round(tripwireStart.y * scaleY)],
+        [Math.round(tripwireEnd.x * scaleX), Math.round(tripwireEnd.y * scaleY)]]
+        : null
 
-  const data = await fetch(`/frame/${currentFrame}`).then(r=>r.json())
-  document.getElementById('videoFrame').src = 'data:image/jpeg;base64,' + data.frame
+      try {
+        const data = await requestJson('/set_geometry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zone, tripwire: wire })
+        })
 
-  const dur = (totalFrames/fps).toFixed(1)
-  document.getElementById('timecode').textContent = `${data.timestamp} / ${dur}s`
+        document.getElementById('previewImg').src = 'data:image/jpeg;base64,' + data.preview
+        document.getElementById('previewWrap').classList.remove('hidden')
+        document.getElementById('previewEmpty')?.classList.add('hidden')
+      } catch (err) {
+        alert('Could not update geometry preview: ' + err.message)
+      }
+    }
 
-  // detection counts
-  const dc = document.getElementById('detCounts')
-  if (Object.keys(data.counts).length === 0) {
-    dc.innerHTML = '<div style="color:#8b949e;font-size:13px">No detections</div>'
-  } else {
-    dc.innerHTML = Object.entries(data.counts)
-      .sort((a,b)=>b[1]-a[1])
-      .map(([k,v]) => `<div class="det-item"><span>${k}</span><span class="det-count">${v}</span></div>`)
-      .join('')
-  }
+    // ── PROCESSING ────────────────────────────────────────────────────────────────
+    async function startProcessing() {
+      if (polyPoints.length < 3 && !tripwireStart) {
+        if (!confirm('No zone or tripwire drawn. Process anyway? (detections only, no alerts)')) return
+      }
 
-  // frame alerts
-  const fa = document.getElementById('frameAlerts')
-  if (!data.alerts.length) {
-    fa.innerHTML = '<div style="color:#8b949e;font-size:13px">No alerts this frame</div>'
-  } else {
-    fa.innerHTML = data.alerts.map(a => alertCard(a, false)).join('')
-  }
-}
+      // send geometry first
+      const zone = polyPoints.map(p => [Math.round(p.x * scaleX), Math.round(p.y * scaleY)])
+      const wire = tripwireStart
+        ? [[Math.round(tripwireStart.x * scaleX), Math.round(tripwireStart.y * scaleY)],
+        [Math.round(tripwireEnd.x * scaleX), Math.round(tripwireEnd.y * scaleY)]]
+        : null
+      try {
+        await requestJson('/set_geometry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zone, tripwire: wire })
+        })
+      } catch (err) {
+        alert('Could not save geometry: ' + err.message)
+        return
+      }
 
-function alertCard(a, jumpable=true) {
-  const c = THREAT_COLORS[a.threat_level] || '#888'
-  return `<div class="alert-card" style="background:${c}18;border-color:${c}">
-    <div class="al-level" style="color:${c}">${a.threat_level}</div>
-    <div class="al-detail">${a.label} #${a.track_id} · ${a.event} · ${a.direction}</div>
-    <div class="al-detail">${a.timestamp.toFixed?.(2)||a.timestamp}s · ${Math.round(a.confidence*100)}%</div>
-    ${jumpable ? `<span class="al-jump" onclick="jumpTo(${a.frame_idx})">→ Jump to frame ${a.frame_idx}</span>` : ''}
+      showProcessingOverlay()
+
+      const frameSkip = inputType === 'image'
+        ? 1
+        : parseInt(document.getElementById('frameSkipValue')?.value || '3', 10)
+
+      try {
+        await requestJson('/process', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            frame_skip: frameSkip,
+            conf_threshold: getConfidenceThreshold(),
+            model_type: document.getElementById('modelSelect').value,
+          }),
+        })
+        pollProgress()
+      } catch (err) {
+        hideProcessingOverlay()
+        alert('Processing start failed: ' + err.message)
+        setStage(2)
+      }
+    }
+
+    function pollProgress() {
+      if (procPollHandle) clearInterval(procPollHandle)
+
+      procPollHandle = setInterval(async () => {
+        try {
+          const data = await requestJson('/progress')
+          const backendProgress = Number.isFinite(Number(data.progress)) ? Number(data.progress) : 0
+          procTargetProgress = Math.max(procTargetProgress, backendProgress)
+          document.getElementById('procText').textContent = data.text || 'Processing…'
+
+          if (data.done) {
+            clearInterval(procPollHandle)
+            procPollHandle = null
+            procTargetProgress = 100
+            await settleProcessingProgress()
+            await loadReview()
+            hideProcessingOverlay()
+            setStage(4)
+          }
+        } catch (err) {
+          if (procPollHandle) {
+            clearInterval(procPollHandle)
+            procPollHandle = null
+          }
+          hideProcessingOverlay()
+          alert('Lost processing status: ' + err.message)
+          setStage(2)
+        }
+      }, 250)
+    }
+
+    // ── REVIEW ────────────────────────────────────────────────────────────────────
+    async function loadReview() {
+      allAlerts = await requestJson('/alerts')
+
+      document.getElementById('scrubber').max = totalFrames - 1
+      document.getElementById('alertCount').textContent = `${allAlerts.length} total alerts`
+
+      buildAlertTable()
+      loadSummaryMetrics()
+      await loadFrame(0)
+      await loadHeatmap()
+    }
+
+    async function loadFrame(idx) {
+      currentFrame = Math.max(0, Math.min(idx, totalFrames - 1))
+      document.getElementById('scrubber').value = currentFrame
+
+      const data = await requestJson(`/frame/${currentFrame}`)
+      document.getElementById('videoFrame').src = 'data:image/jpeg;base64,' + data.frame
+
+      const dur = (totalFrames / fps).toFixed(1)
+      document.getElementById('timecode').textContent = `${data.timestamp} / ${dur}s`
+
+      // detection counts
+      const dc = document.getElementById('detCounts')
+      if (Object.keys(data.counts).length === 0) {
+        dc.innerHTML = '<div style="color:#8b949e;font-size:13px">No detections</div>'
+      } else {
+        dc.innerHTML = Object.entries(data.counts)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, v]) => `<div class="det-item"><span>${k}</span><span class="det-count">${v}</span></div>`)
+          .join('')
+      }
+
+      // frame alerts
+      const fa = document.getElementById('frameAlerts')
+      if (fa) {
+        if (!data.alerts.length) {
+          fa.innerHTML = '<div style="color:#8b949e;font-size:13px">No alerts this frame</div>'
+        } else {
+          fa.innerHTML = data.alerts.map(a => alertCard(a, false)).join('')
+        }
+      }
+    }
+
+    function alertCard(a, jumpable = true) {
+      const c = THREAT_COLORS[a.threat_level] || '#888'
+      return `<div class="card" style="padding:12px; border-color:${c}; border-width:1px; margin-bottom:8px; background:rgba(255,255,255,0.02)">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <span style="color:${c}; font-size:11px; font-weight:700;">${a.threat_level}</span>
+      <span style="color:var(--text-secondary); font-size:11px;">${a.label} #${a.track_id}</span>
+    </div>
+    <div style="font-size:12px; color:var(--text-primary); margin-bottom:4px;">${a.event} · ${a.direction}</div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+       <span style="font-size:11px; color:var(--text-secondary);">${a.timestamp.toFixed?.(2) || a.timestamp}s</span>
+       ${jumpable ? `<span style="color:var(--accent); cursor:pointer; font-size:11px;" onclick="jumpTo(${a.frame_idx})">Jump →</span>` : ''}
+    </div>
   </div>`
-}
+    }
 
-function buildAlertTable() {
-  const tbody = document.getElementById('alertTableBody')
-  tbody.innerHTML = allAlerts.map(a => {
-    const c = THREAT_COLORS[a.threat_level]||'#888'
-    return `<tr>
-      <td>${(a.timestamp.toFixed?.(2)||a.timestamp)}s</td>
-      <td>#${a.track_id}</td>
-      <td>${a.label}</td>
-      <td>${a.event}</td>
-      <td>${a.direction}</td>
-      <td><span class="tl ${a.threat_level}">${a.threat_level}</span></td>
-      <td>${Math.round(a.confidence*100)}%</td>
-      <td><span style="color:#58a6ff;cursor:pointer;font-size:11px" onclick="jumpTo(${a.frame_idx})">→</span></td>
+    function buildAlertTable() {
+      const tbody = document.getElementById('alertTableBody')
+      tbody.innerHTML = allAlerts.map(a => {
+        const c = THREAT_COLORS[a.threat_level] || '#888'
+        return `<tr style="border-bottom: 1px solid var(--border);">
+      <td style="padding:10px;">${(a.timestamp.toFixed?.(2) || a.timestamp)}s</td>
+      <td style="padding:10px;">${a.frame_idx ?? '-'}</td>
+      <td style="padding:10px;">#${a.track_id}</td>
+      <td style="padding:10px;">${a.label}</td>
+      <td style="padding:10px;"><span style="color:${c}; font-weight:600;">${a.threat_level}</span></td>
+      <td style="padding:10px;">${Math.round(a.confidence * 100)}%</td>
+      <td style="padding:10px;"><span style="color:var(--accent);cursor:pointer;" onclick="jumpTo(${a.frame_idx})">→</span></td>
     </tr>`
-  }).join('')
-}
+      }).join('')
+    }
 
-function loadSummaryMetrics() {
-  const total    = allAlerts.length
-  const critical = allAlerts.filter(a=>a.threat_level==='CRITICAL').length
-  const high     = allAlerts.filter(a=>a.threat_level==='HIGH').length
-  const entries  = allAlerts.filter(a=>a.event==='LINE_CROSSED'&&a.direction==='ENTRY').length
+    function loadSummaryMetrics() {
+      const total = allAlerts.length
+      const critical = allAlerts.filter(a => a.threat_level === 'CRITICAL').length
+      const high = allAlerts.filter(a => a.threat_level === 'HIGH').length
+      const entries = allAlerts.filter(a => a.event === 'LINE_CROSSED' && a.direction === 'ENTRY').length
 
-  document.getElementById('summaryMetrics').innerHTML = `
-    <div class="metric"><div class="val">${total}</div><div class="lbl">Total</div></div>
-    <div class="metric" style="color:#f85149"><div class="val" style="color:#f85149">${critical}</div><div class="lbl">Critical</div></div>
-    <div class="metric" style="color:#f0883e"><div class="val" style="color:#f0883e">${high}</div><div class="lbl">High</div></div>
-    <div class="metric" style="color:#58a6ff"><div class="val" style="color:#58a6ff">${entries}</div><div class="lbl">Entries</div></div>
+      document.getElementById('summaryMetrics').innerHTML = `
+    <div class="card" style="margin:0; padding:12px; text-align:center;">
+       <div style="font-size:18px; font-weight:600;">${total}</div>
+       <div style="font-size:10px; color:var(--text-secondary);">TOTAL</div>
+    </div>
+    <div class="card" style="margin:0; padding:12px; text-align:center; border-color: ${THREAT_COLORS.CRITICAL}">
+       <div style="font-size:18px; font-weight:600; color: ${THREAT_COLORS.CRITICAL}">${critical}</div>
+       <div style="font-size:10px; color:var(--text-secondary);">CRITICAL</div>
+    </div>
+    <div class="card" style="margin:0; padding:12px; text-align:center; border-color: ${THREAT_COLORS.HIGH}">
+       <div style="font-size:18px; font-weight:600; color: ${THREAT_COLORS.HIGH}">${high}</div>
+       <div style="font-size:10px; color:var(--text-secondary);">HIGH</div>
+    </div>
+    <div class="card" style="margin:0; padding:12px; text-align:center;">
+       <div style="font-size:18px; font-weight:600; color: var(--accent);">${entries}</div>
+       <div style="font-size:10px; color:var(--text-secondary);">ENTRIES</div>
+    </div>
   `
-}
+    }
 
-async function loadHeatmap() {
-  const data = await fetch('/heatmap').then(r=>r.json())
-  if (!data.heatmap) return
 
-  document.getElementById('heatmapImg').src = 'data:image/jpeg;base64,' + data.heatmap
+    async function loadHeatmap() {
+      const data = await requestJson('/heatmap')
+      if (!data.heatmap) return
 
-  const s = data.stats
-  let html = ''
+      document.getElementById('heatmapImg').src = 'data:image/jpeg;base64,' + data.heatmap
 
-  // by level
-  if (s.by_level && Object.keys(s.by_level).length) {
-    html += '<h2 style="margin-bottom:10px;margin-top:4px">By Threat Level</h2>'
-    const mx = Math.max(...Object.values(s.by_level))
-    ;['CRITICAL','HIGH','MEDIUM','LOW'].forEach(lv => {
-      const v = s.by_level[lv]||0
-      if (!v) return
-      const c = THREAT_COLORS[lv]
-      html += `<div class="stat-bar-row">
+      const s = data.stats
+      let html = ''
+
+      // by level
+      if (s.by_level && Object.keys(s.by_level).length) {
+        html += '<h2 style="margin-bottom:10px;margin-top:4px">By Threat Level</h2>'
+        const mx = Math.max(...Object.values(s.by_level))
+          ;['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].forEach(lv => {
+            const v = s.by_level[lv] || 0
+            if (!v) return
+            const c = THREAT_COLORS[lv]
+            html += `<div class="stat-bar-row">
         <span class="stat-label" style="color:${c}">${lv}</span>
-        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v/mx*100}%;background:${c}"></div></div>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v / mx * 100}%;background:${c}"></div></div>
         <span class="stat-val">${v}</span></div>`
-    })
-  }
+          })
+      }
 
-  if (s.by_class && Object.keys(s.by_class).length) {
-    html += '<h2 style="margin:14px 0 10px">By Class</h2>'
-    const mx = Math.max(...Object.values(s.by_class))
-    Object.entries(s.by_class).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{
-      html += `<div class="stat-bar-row">
+      if (s.by_class && Object.keys(s.by_class).length) {
+        html += '<h2 style="margin:14px 0 10px">By Class</h2>'
+        const mx = Math.max(...Object.values(s.by_class))
+        Object.entries(s.by_class).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => {
+          html += `<div class="stat-bar-row">
         <span class="stat-label">${k}</span>
-        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v/mx*100}%"></div></div>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v / mx * 100}%"></div></div>
         <span class="stat-val">${v}</span></div>`
-    })
-  }
+        })
+      }
 
-  if (s.by_event && Object.keys(s.by_event).length) {
-    html += '<h2 style="margin:14px 0 10px">By Event</h2>'
-    const mx = Math.max(...Object.values(s.by_event))
-    Object.entries(s.by_event).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{
-      html += `<div class="stat-bar-row">
-        <span class="stat-label">${k.replace('_',' ')}</span>
-        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v/mx*100}%;background:#8b949e"></div></div>
+      if (s.by_event && Object.keys(s.by_event).length) {
+        html += '<h2 style="margin:14px 0 10px">By Event</h2>'
+        const mx = Math.max(...Object.values(s.by_event))
+        Object.entries(s.by_event).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => {
+          html += `<div class="stat-bar-row">
+        <span class="stat-label">${k.replace('_', ' ')}</span>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${v / mx * 100}%;background:#8b949e"></div></div>
         <span class="stat-val">${v}</span></div>`
-    })
-  }
+        })
+      }
 
-  if (s.entries !== undefined) {
-    html += `<h2 style="margin:14px 0 10px">Border Crossings</h2>
+      if (s.entries !== undefined) {
+        html += `<h2 style="margin:14px 0 10px">Border Crossings</h2>
     <div class="metric-row">
       <div class="metric"><div class="val" style="color:#f85149">${s.entries}</div><div class="lbl">Entries</div></div>
       <div class="metric"><div class="val" style="color:#3fb950">${s.exits}</div><div class="lbl">Exits</div></div>
       <div class="metric"><div class="val" style="color:#e3b341">${s.intrusions}</div><div class="lbl">Intrusions</div></div>
     </div>`
-  }
+      }
 
-  document.getElementById('statsWrap').innerHTML = html
-}
+      document.getElementById('statsWrap').innerHTML = html
+    }
 
-// ── PLAYBACK ─────────────────────────────────────────────────────────────────
-async function onScrub(val) {
-  stopPlay()
-  await loadFrame(parseInt(val))
-}
+    // ── PLAYBACK ─────────────────────────────────────────────────────────────────
+    async function onScrub(val) {
+      stopPlay()
+      await loadFrame(parseInt(val))
+    }
 
-function jumpTo(idx) {
-  stopPlay()
-  loadFrame(idx)
-}
+    function jumpTo(idx) {
+      stopPlay()
+      loadFrame(idx)
+    }
 
-function togglePlay() {
-  if (isPlaying) stopPlay()
-  else           startPlay()
-}
+    function togglePlay() {
+      if (isPlaying) stopPlay()
+      else startPlay()
+    }
 
-function startPlay() {
-  isPlaying = true
-  document.getElementById('playBtn').textContent = '⏸ Pause'
-  document.getElementById('playBtn').classList.add('primary')
-  advance()
-}
+    function startPlay() {
+      isPlaying = true
+      document.getElementById('playBtn').textContent = '⏸ Pause'
+      document.getElementById('playBtn').classList.add('primary')
+      advance()
+    }
 
-function stopPlay() {
-  isPlaying = false
-  if (playTimer) clearTimeout(playTimer)
-  document.getElementById('playBtn').textContent = '▶ Play'
-}
+    function stopPlay() {
+      isPlaying = false
+      if (playTimer) clearTimeout(playTimer)
+      document.getElementById('playBtn').textContent = '▶ Play'
+    }
 
-async function advance() {
-  if (!isPlaying) return
-  if (currentFrame >= totalFrames - 1) { stopPlay(); return }
-  await loadFrame(currentFrame + 1)
-  playTimer = setTimeout(advance, 1000 / fps)
-}
+    async function advance() {
+      if (!isPlaying) return
+      if (currentFrame >= totalFrames - 1) { stopPlay(); return }
+      await loadFrame(currentFrame + 1)
+      playTimer = setTimeout(advance, 1000 / fps)
+    }
 
-// ── TABS ─────────────────────────────────────────────────────────────────────
-function switchTab(t) {
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active', ['log','heatmap'][i]===t))
-  document.getElementById('tabLog').classList.toggle('hidden', t!=='log')
-  document.getElementById('tabHeatmap').classList.toggle('hidden', t!=='heatmap')
-}
+    // ── TABS ─────────────────────────────────────────────────────────────────────
+    function switchTab(t) {
+      const logBtn = document.getElementById('tabLogBtn')
+      const heatBtn = document.getElementById('tabHeatmapBtn')
+      const logTab = document.getElementById('tabLog')
+      const heatTab = document.getElementById('tabHeatmap')
 
-// ── EXPORT ───────────────────────────────────────────────────────────────────
-function exportCSV() {
-  window.location.href = '/export_csv'
-}
-</script>
+      if (!logBtn || !heatBtn || !logTab || !heatTab) return
+
+      logBtn.classList.toggle('active', t === 'log')
+      heatBtn.classList.toggle('active', t === 'heatmap')
+      logTab.classList.toggle('hidden', t !== 'log')
+      heatTab.classList.toggle('hidden', t !== 'heatmap')
+    }
+
+
+    // ── EXPORT ───────────────────────────────────────────────────────────────────
+    function exportCSV() {
+      window.location.href = '/export_csv'
+    }
+
+    // Initial landing defaults
+    initLandingEvents()
+    initTheme()
+    setInputType('image')
+    setTool('polygon')
+    updateStage2ConfigSummary()
+    updateStatus()
+    updateBackButtonState()
+  </script>
+
 </body>
+
 </html>

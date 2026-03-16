@@ -171,14 +171,19 @@ CLASS_COLORS = {            # Customize detection colors
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/` | GET | Serve web UI |
-| `/upload` | POST | Upload video file (multipart form-data) |
-| `/analysis` | GET | Run threat analysis on uploaded video |
-| `/frames` | GET | Get processed frame (query param: `frame=idx`) |
-| `/export` | GET | Download alerts as CSV file |
+| `/upload` | POST | Upload media file (multipart form-data) |
+| `/upload_link` | POST | Load media directly from URL |
+| `/set_geometry` | POST | Save polygon zone and tripwire geometry |
+| `/process` | POST | Start model processing in background thread |
+| `/progress` | GET | Poll processing progress |
+| `/frame/<idx>` | GET | Get rendered frame by index |
+| `/alerts` | GET | Fetch all generated alerts |
+| `/heatmap` | GET | Fetch blended heatmap and summary stats |
+| `/export_csv` | GET | Download alerts as CSV file |
 
 ### Example: Get Frame 42
 ```
-GET /frames?frame=42
+GET /frame/42
 ```
 
 ## 🐳 Hugging Face Spaces Deployment

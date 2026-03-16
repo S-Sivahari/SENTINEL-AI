@@ -121,13 +121,13 @@ class ThreatEngine:
         shifted_zone = self.zone.copy()
         shifted_zone[:, 0] -= ix1
         shifted_zone[:, 1] -= iy1
-        cv2.fillPoly(zone_mask, [shifted_zone.astype(np.int32)], 1)
+        cv2.fillPoly(zone_mask, [shifted_zone.astype(np.int32)], (1,))
 
         cv2.rectangle(
             bbox_mask,
             (bx1 - ix1, by1 - iy1),
             (bx2 - ix1, by2 - iy1),
-            1,
+            (1,),
             thickness=-1,
         )
 
@@ -257,7 +257,11 @@ class ThreatEngine:
 
     # ── HEATMAP ────────────────────────────────────────────────────────────
 
-    def generate_heatmap(self, frame_shape, positions: list = None) -> np.ndarray:
+    def generate_heatmap(
+        self,
+        frame_shape,
+        positions: Optional[List[Tuple[int, int]]] = None,
+    ) -> np.ndarray:
         """
         Returns a BGR heatmap image (same size as frame_shape) showing
         density of all intrusion / crossing events.
@@ -269,7 +273,7 @@ class ThreatEngine:
 
         for (cx, cy) in pts:
             if 0 <= int(cx) < w and 0 <= int(cy) < h:
-                cv2.circle(canvas, (int(cx), int(cy)), radius=50, color=1.0, thickness=-1)
+                cv2.circle(canvas, (int(cx), int(cy)), radius=50, color=(1.0,), thickness=-1)
 
         if canvas.max() > 0:
             canvas /= canvas.max()
