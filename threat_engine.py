@@ -32,6 +32,8 @@ class ThreatEngine:
         self.tripwire_p1:    Optional[Tuple[int,int]] = None
         self.tripwire_p2:    Optional[Tuple[int,int]] = None
         self.zone:           Optional[np.ndarray]     = None
+        self.zone_overlap_threshold: float = 0.10
+        self.side_epsilon_px: float = 2.0
         self.track_history:  dict = {}
         self.alerts:         List[Alert] = []
         self.intrusion_positions: List[Tuple[int,int]] = []
@@ -55,16 +57,31 @@ class ThreatEngine:
 
     # ── GEOMETRY ───────────────────────────────────────────────────────────
 
-    def _side(self, p1, p2, pt) -> float:
+    def _signed_distance_to_line(self, p1, p2, pt) -> float:
         """
-        Cross product sign:
-          positive  →  pt is on the 'threat' side of line p1→p2
-          negative  →  pt is on the 'safe' side
+        Signed perpendicular distance (in pixels) from point to directed line p1->p2.
+          positive  -> point is on positive side
+          negative  -> point is on negative side
+          near zero -> point lies on/very near line
         """
+        dx = float(p2[0] - p1[0])
+        dy = float(p2[1] - p1[1])
+        denom = float(np.hypot(dx, dy))
+        if denom == 0.0:
+            return 0.0
         return float(
             (p2[0]-p1[0]) * (pt[1]-p1[1])
           - (p2[1]-p1[1]) * (pt[0]-p1[0])
-        )
+        ) / denom
+
+    def _line_side(self, p1, p2, pt) -> int:
+        """Classify which side of line the point is on: -1, 0, +1."""
+        d = self._signed_distance_to_line(p1, p2, pt)
+        if d > self.side_epsilon_px:
+            return 1
+        if d < -self.side_epsilon_px:
+            return -1
+        return 0
 
     def _in_zone(self, pt) -> bool:
         if self.zone is None:
@@ -73,54 +90,54 @@ class ThreatEngine:
             self.zone, (float(pt[0]), float(pt[1])), measureDist=False
         ) >= 0
 
-    def _bbox_in_zone(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+    def _bbox_zone_overlap_ratio(self, x1: int, y1: int, x2: int, y2: int) -> float:
         """
-        Check if ANY part of the bounding box intersects with the zone.
-        This includes:
-        - Any corner inside the zone
-        - Any edge of bbox crossing zone boundary
-        - Zone completely inside bbox
+        Returns intersection_area / bbox_area between bbox and zone polygon.
+        Uses a local ROI mask so only meaningful overlap contributes.
         """
         if self.zone is None:
-            return False
-        
-        # Check if any corner of bbox is inside zone
-        corners = [(x1, y1), (x2, y1), (x1, y2), (x2, y2)]
-        for corner in corners:
-            if self._in_zone(corner):
-                return True
-        
-        # Create a bounding box polygon
-        bbox = np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]], dtype=np.int32)
-        
-        # Check if any zone vertex is inside the bbox
-        for vertex in self.zone:
-            pt = tuple(vertex)
-            if x1 <= pt[0] <= x2 and y1 <= pt[1] <= y2:
-                return True
-        
-        # Check if bounding box edges intersect with zone edges
-        zone_edges = [(self.zone[i], self.zone[(i+1) % len(self.zone)]) for i in range(len(self.zone))]
-        bbox_edges = [
-            ((x1, y1), (x2, y1)),  # top
-            ((x2, y1), (x2, y2)),  # right
-            ((x2, y2), (x1, y2)),  # bottom
-            ((x1, y2), (x1, y1))   # left
-        ]
-        
-        for be in bbox_edges:
-            for ze in zone_edges:
-                if self._segments_intersect(be[0], be[1], ze[0], ze[1]):
-                    return True
-        
-        return False
+            return 0.0
 
-    def _segments_intersect(self, p1, p2, p3, p4) -> bool:
-        """Check if line segments (p1-p2) and (p3-p4) intersect"""
-        def ccw(A, B, C):
-            return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
-        
-        return ccw(p1, p3, p4) != ccw(p2, p3, p4) and ccw(p1, p2, p3) != ccw(p1, p2, p4)
+        bx1, by1, bx2, by2 = int(min(x1, x2)), int(min(y1, y2)), int(max(x1, x2)), int(max(y1, y2))
+        bw = bx2 - bx1
+        bh = by2 - by1
+        bbox_area = max(1, bw * bh)
+
+        zx, zy, zw, zh = cv2.boundingRect(self.zone)
+        ix1 = max(bx1, zx)
+        iy1 = max(by1, zy)
+        ix2 = min(bx2, zx + zw)
+        iy2 = min(by2, zy + zh)
+
+        if ix2 <= ix1 or iy2 <= iy1:
+            return 0.0
+
+        roi_w = ix2 - ix1
+        roi_h = iy2 - iy1
+
+        zone_mask = np.zeros((roi_h, roi_w), dtype=np.uint8)
+        bbox_mask = np.zeros((roi_h, roi_w), dtype=np.uint8)
+
+        shifted_zone = self.zone.copy()
+        shifted_zone[:, 0] -= ix1
+        shifted_zone[:, 1] -= iy1
+        cv2.fillPoly(zone_mask, [shifted_zone.astype(np.int32)], 1)
+
+        cv2.rectangle(
+            bbox_mask,
+            (bx1 - ix1, by1 - iy1),
+            (bx2 - ix1, by2 - iy1),
+            1,
+            thickness=-1,
+        )
+
+        inter = cv2.bitwise_and(zone_mask, bbox_mask)
+        inter_area = int(np.count_nonzero(inter))
+        return float(inter_area) / float(bbox_area)
+
+    def _bbox_in_zone(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+        """Object is considered in-zone only when overlap exceeds threshold."""
+        return self._bbox_zone_overlap_ratio(x1, y1, x2, y2) >= self.zone_overlap_threshold
 
     # ── SCORING ────────────────────────────────────────────────────────────
 
@@ -164,7 +181,7 @@ class ThreatEngine:
             # initialise per-track memory
             if track_id not in self.track_history:
                 self.track_history[track_id] = {
-                    "prev_sign":       None,
+                    "last_stable_side": None,
                     "zone_entry_frame": None,
                     "frames_in_zone":  0,
                     "alerted_cross":   False,
@@ -175,29 +192,32 @@ class ThreatEngine:
 
             # ── TRIPWIRE ──────────────────────────────────────────────────
             if self.tripwire_p1 is not None:
-                curr = self._side(self.tripwire_p1, self.tripwire_p2, foot)
-                prev = h["prev_sign"]
+                curr_side = self._line_side(self.tripwire_p1, self.tripwire_p2, foot)
+                last_side = h["last_stable_side"]
 
-                if prev is not None:
-                    # negative → positive  =  crossed INTO threat side (ENTRY)
-                    if prev < 0 and curr > 0:
-                        level = self._score(label, conf, True, self._in_zone(foot), 0, zone_persons)
-                        a = Alert(frame_idx, frame_idx/self.fps, track_id, label,
-                                  "LINE_CROSSED", "ENTRY", level, foot, conf)
+                # Ignore near-line jitter; only update/alert on stable side values.
+                if curr_side != 0:
+                    if last_side is None:
+                        h["last_stable_side"] = curr_side
+                    elif curr_side != last_side:
+                        direction = "ENTRY" if (last_side < 0 and curr_side > 0) else "EXIT"
+                        level = self._score(label, conf, True, self._bbox_in_zone(x1, y1, x2, y2), 0, zone_persons)
+                        a = Alert(
+                            frame_idx,
+                            frame_idx / self.fps,
+                            track_id,
+                            label,
+                            "LINE_CROSSED",
+                            direction,
+                            level,
+                            foot,
+                            conf,
+                        )
                         frame_alerts.append(a)
                         self.alerts.append(a)
                         self.intrusion_positions.append(foot)
-                        h["alerted_cross"] = True
-
-                    # positive → negative  =  crossed OUT (EXIT)
-                    elif prev > 0 and curr < 0:
-                        a = Alert(frame_idx, frame_idx/self.fps, track_id, label,
-                                  "LINE_CROSSED", "EXIT", "LOW", foot, conf)
-                        frame_alerts.append(a)
-                        self.alerts.append(a)
-                        h["alerted_cross"] = False   # reset so re-entry fires again
-
-                h["prev_sign"] = curr
+                        h["alerted_cross"] = (direction == "ENTRY")
+                        h["last_stable_side"] = curr_side
 
             # ── ZONE INTRUSION ────────────────────────────────────────────
             in_zone = self._bbox_in_zone(x1, y1, x2, y2)
