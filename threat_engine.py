@@ -10,7 +10,7 @@ class Alert:
     timestamp:    float      # seconds
     track_id:     int
     label:        str
-    event:        str        # LINE_CROSSED | ZONE_INTRUSION | LOITERING
+    event:        str        # LINE_CROSSED | TRIPWIRE_TOUCH | ZONE_INTRUSION | LOITERING
     direction:    str        # ENTRY | EXIT | N/A
     threat_level: str        # LOW | MEDIUM | HIGH | CRITICAL
     position:     Tuple[int, int]
@@ -32,7 +32,8 @@ class ThreatEngine:
         self.tripwire_p1:    Optional[Tuple[int,int]] = None
         self.tripwire_p2:    Optional[Tuple[int,int]] = None
         self.zone:           Optional[np.ndarray]     = None
-        self.zone_overlap_threshold: float = 0.10
+        self.zone_overlap_threshold: float = 0.01
+        self.tripwire_contact_padding_px: int = 2
         self.side_epsilon_px: float = 2.0
         self.track_history:  dict = {}
         self.alerts:         List[Alert] = []
@@ -136,8 +137,119 @@ class ThreatEngine:
         return float(inter_area) / float(bbox_area)
 
     def _bbox_in_zone(self, x1: int, y1: int, x2: int, y2: int) -> bool:
-        """Object is considered in-zone only when overlap exceeds threshold."""
-        return self._bbox_zone_overlap_ratio(x1, y1, x2, y2) >= self.zone_overlap_threshold
+        """Object is considered in-zone when object bbox overlaps/touches zone bbox."""
+        if self.zone is None:
+            return False
+
+        bx1, by1 = int(min(x1, x2)), int(min(y1, y2))
+        bx2, by2 = int(max(x1, x2)), int(max(y1, y2))
+        zx, zy, zw, zh = cv2.boundingRect(self.zone)
+        zx2 = zx + max(0, zw)
+        zy2 = zy + max(0, zh)
+
+        return self._boxes_touch_or_overlap(bx1, by1, bx2, by2, zx, zy, zx2, zy2)
+
+    @staticmethod
+    def _boxes_touch_or_overlap(
+        ax1: int, ay1: int, ax2: int, ay2: int,
+        bx1: int, by1: int, bx2: int, by2: int,
+    ) -> bool:
+        """Inclusive overlap test: touching edges also counts as contact."""
+        a_min_x, a_max_x = min(ax1, ax2), max(ax1, ax2)
+        a_min_y, a_max_y = min(ay1, ay2), max(ay1, ay2)
+        b_min_x, b_max_x = min(bx1, bx2), max(bx1, bx2)
+        b_min_y, b_max_y = min(by1, by2), max(by1, by2)
+
+        return not (
+            a_max_x < b_min_x
+            or b_max_x < a_min_x
+            or a_max_y < b_min_y
+            or b_max_y < a_min_y
+        )
+
+    @staticmethod
+    def _point_in_bbox(px: float, py: float, x1: int, y1: int, x2: int, y2: int) -> bool:
+        bx1, by1 = min(x1, x2), min(y1, y2)
+        bx2, by2 = max(x1, x2), max(y1, y2)
+        return bx1 <= px <= bx2 and by1 <= py <= by2
+
+    @staticmethod
+    def _orientation(a: Tuple[float, float], b: Tuple[float, float], c: Tuple[float, float]) -> int:
+        """Returns 0 for collinear, 1 for clockwise, 2 for counterclockwise."""
+        val = (b[1] - a[1]) * (c[0] - b[0]) - (b[0] - a[0]) * (c[1] - b[1])
+        if abs(val) < 1e-6:
+            return 0
+        return 1 if val > 0 else 2
+
+    @staticmethod
+    def _on_segment(a: Tuple[float, float], b: Tuple[float, float], c: Tuple[float, float]) -> bool:
+        return (
+            min(a[0], c[0]) - 1e-6 <= b[0] <= max(a[0], c[0]) + 1e-6
+            and min(a[1], c[1]) - 1e-6 <= b[1] <= max(a[1], c[1]) + 1e-6
+        )
+
+    def _segments_intersect(
+        self,
+        p1: Tuple[float, float],
+        q1: Tuple[float, float],
+        p2: Tuple[float, float],
+        q2: Tuple[float, float],
+    ) -> bool:
+        o1 = self._orientation(p1, q1, p2)
+        o2 = self._orientation(p1, q1, q2)
+        o3 = self._orientation(p2, q2, p1)
+        o4 = self._orientation(p2, q2, q1)
+
+        if o1 != o2 and o3 != o4:
+            return True
+
+        if o1 == 0 and self._on_segment(p1, p2, q1):
+            return True
+        if o2 == 0 and self._on_segment(p1, q2, q1):
+            return True
+        if o3 == 0 and self._on_segment(p2, p1, q2):
+            return True
+        if o4 == 0 and self._on_segment(p2, q1, q2):
+            return True
+        return False
+
+    def _bbox_touches_tripwire(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+        """True when object bbox overlaps/touches tripwire bbox (with small padding)."""
+        if self.tripwire_p1 is None or self.tripwire_p2 is None:
+            return False
+
+        bx1, by1 = int(min(x1, x2)), int(min(y1, y2))
+        bx2, by2 = int(max(x1, x2)), int(max(y1, y2))
+
+        tx1 = min(self.tripwire_p1[0], self.tripwire_p2[0]) - self.tripwire_contact_padding_px
+        ty1 = min(self.tripwire_p1[1], self.tripwire_p2[1]) - self.tripwire_contact_padding_px
+        tx2 = max(self.tripwire_p1[0], self.tripwire_p2[0]) + self.tripwire_contact_padding_px
+        ty2 = max(self.tripwire_p1[1], self.tripwire_p2[1]) + self.tripwire_contact_padding_px
+
+        if self._boxes_touch_or_overlap(bx1, by1, bx2, by2, tx1, ty1, tx2, ty2):
+            return True
+
+        p1 = (float(self.tripwire_p1[0]), float(self.tripwire_p1[1]))
+        p2 = (float(self.tripwire_p2[0]), float(self.tripwire_p2[1]))
+
+        # Fast-path: line endpoint already inside bbox.
+        if self._point_in_bbox(p1[0], p1[1], bx1, by1, bx2, by2):
+            return True
+        if self._point_in_bbox(p2[0], p2[1], bx1, by1, bx2, by2):
+            return True
+
+        top_left = (float(bx1), float(by1))
+        top_right = (float(bx2), float(by1))
+        bottom_right = (float(bx2), float(by2))
+        bottom_left = (float(bx1), float(by2))
+        edges = [
+            (top_left, top_right),
+            (top_right, bottom_right),
+            (bottom_right, bottom_left),
+            (bottom_left, top_left),
+        ]
+
+        return any(self._segments_intersect(p1, p2, e1, e2) for (e1, e2) in edges)
 
     # ── SCORING ────────────────────────────────────────────────────────────
 
@@ -185,6 +297,7 @@ class ThreatEngine:
                     "zone_entry_frame": None,
                     "frames_in_zone":  0,
                     "alerted_cross":   False,
+                    "alerted_touch":   False,
                     "alerted_zone":    False,
                 }
 
@@ -194,6 +307,7 @@ class ThreatEngine:
             if self.tripwire_p1 is not None:
                 curr_side = self._line_side(self.tripwire_p1, self.tripwire_p2, foot)
                 last_side = h["last_stable_side"]
+                crossed_now = False
 
                 # Ignore near-line jitter; only update/alert on stable side values.
                 if curr_side != 0:
@@ -218,6 +332,28 @@ class ThreatEngine:
                         self.intrusion_positions.append(foot)
                         h["alerted_cross"] = (direction == "ENTRY")
                         h["last_stable_side"] = curr_side
+                        crossed_now = True
+
+                touches_now = self._bbox_touches_tripwire(x1, y1, x2, y2)
+                if touches_now and not crossed_now and not h["alerted_touch"]:
+                    level = self._score(label, conf, True, self._bbox_in_zone(x1, y1, x2, y2), 0, zone_persons)
+                    a = Alert(
+                        frame_idx,
+                        frame_idx / self.fps,
+                        track_id,
+                        label,
+                        "TRIPWIRE_TOUCH",
+                        "N/A",
+                        level,
+                        foot,
+                        conf,
+                    )
+                    frame_alerts.append(a)
+                    self.alerts.append(a)
+                    self.intrusion_positions.append(foot)
+                    h["alerted_touch"] = True
+                elif not touches_now:
+                    h["alerted_touch"] = False
 
             # ── ZONE INTRUSION ────────────────────────────────────────────
             in_zone = self._bbox_in_zone(x1, y1, x2, y2)

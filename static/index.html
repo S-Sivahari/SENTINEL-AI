@@ -1064,6 +1064,53 @@
       text-align: center;
     }
 
+    .camera-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4, 8, 14, 0.72);
+      padding: 20px;
+    }
+
+    .camera-modal-card {
+      width: min(760px, calc(100vw - 40px));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .camera-preview-shell {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 16 / 9;
+      min-height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .camera-preview-shell video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .camera-modal-actions {
+      margin-top: 12px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     @media (max-width: 1200px) {
       .landing-grid {
         grid-template-columns: 1fr;
@@ -1188,12 +1235,12 @@
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
               </svg>
             </button>
-            <button class="upload-tool-btn" title="Use webcam (coming soon)" disabled>
+            <button class="upload-tool-btn" id="cameraBtn" title="Capture from camera" onclick="openCameraCapture()">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
               </svg>
             </button>
-            <button class="upload-tool-btn" title="Paste from clipboard (coming soon)" disabled>
+            <button class="upload-tool-btn" id="clipboardBtn" title="Paste from clipboard" onclick="pasteFromClipboard()">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
                 <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
@@ -1312,6 +1359,7 @@
           </div>
           <div style="flex:1"></div>
           <button class="btn sm" onclick="undoLast()">↩ Undo</button>
+          <button class="btn sm" id="redoBtn" onclick="redoLast()" disabled>↪ Redo</button>
           <button class="btn sm danger" onclick="clearCanvas()">🗑 Clear Canvas</button>
           <button class="btn sm primary" onclick="confirmGeometry()">Confirm and Preview</button>
         </div>
@@ -1368,6 +1416,18 @@
         <div class="progress-fill" id="procFill" style="width:0%; background: var(--accent); height: 100%;"></div>
       </div>
       <div id="procPct" style="margin-top: 20px; font-size: 2rem; font-weight: 300; color: #fff;">0%</div>
+    </div>
+  </div>
+
+  <div id="cameraModal" class="hidden camera-modal">
+    <div class="camera-modal-card">
+      <div class="camera-preview-shell">
+        <video id="cameraPreview" autoplay playsinline muted></video>
+      </div>
+      <div class="camera-modal-actions">
+        <button class="btn" onclick="closeCameraCapture()">Cancel</button>
+        <button class="btn primary" onclick="captureFromCamera()">Capture</button>
+      </div>
     </div>
   </div>
 
@@ -1458,6 +1518,7 @@
     let tripwireStart = null        // {x,y} in canvas px
     let tripwireEnd = null        // {x,y} in canvas px
     let isDrawingLine = false
+    let redoStack = []
 
     let scaleX = 1, scaleY = 1     // canvas px → actual frame px
     let stage2SourceWidth = 0
@@ -1467,6 +1528,7 @@
     let procDisplayProgress = 0
     let procAnimHandle = null
     let procPollHandle = null
+    let cameraStream = null
 
     const THREAT_COLORS = {
       LOW: '#3fb950', MEDIUM: '#e3b341', HIGH: '#f0883e', CRITICAL: '#f85149'
@@ -1628,6 +1690,15 @@
       fileInputGlobal.addEventListener('change', e => {
         if (e.target.files[0]) uploadFile(e.target.files[0])
       })
+
+      window.addEventListener('paste', handleGlobalPaste)
+
+      const cameraModal = document.getElementById('cameraModal')
+      if (cameraModal) {
+        cameraModal.addEventListener('click', e => {
+          if (e.target === cameraModal) closeCameraCapture()
+        })
+      }
     }
 
     function triggerFileSelect() { fileInputGlobal.click() }
@@ -1754,6 +1825,154 @@
       return data
     }
 
+    function stopCameraStream() {
+      if (!cameraStream) return
+      cameraStream.getTracks().forEach(track => track.stop())
+      cameraStream = null
+    }
+
+    async function openCameraCapture() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('Camera is not supported in this browser.')
+        return
+      }
+
+      const cameraModal = document.getElementById('cameraModal')
+      const cameraPreview = document.getElementById('cameraPreview')
+      if (!cameraModal || !cameraPreview) return
+
+      try {
+        let stream = null
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' },
+            audio: false,
+          })
+        } catch (_primaryErr) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          })
+        }
+
+        cameraStream = stream
+        cameraPreview.srcObject = stream
+        cameraModal.classList.remove('hidden')
+        await cameraPreview.play()
+      } catch (err) {
+        alert('Unable to open camera: ' + err.message)
+      }
+    }
+
+    function closeCameraCapture() {
+      const cameraModal = document.getElementById('cameraModal')
+      const cameraPreview = document.getElementById('cameraPreview')
+      if (cameraModal) cameraModal.classList.add('hidden')
+      if (cameraPreview) cameraPreview.srcObject = null
+      stopCameraStream()
+    }
+
+    async function captureFromCamera() {
+      const cameraPreview = document.getElementById('cameraPreview')
+      if (!cameraPreview || !cameraPreview.videoWidth || !cameraPreview.videoHeight) {
+        alert('Camera feed is not ready yet.')
+        return
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = cameraPreview.videoWidth
+      canvas.height = cameraPreview.videoHeight
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height)
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92))
+      if (!blob) {
+        alert('Could not capture image from camera.')
+        return
+      }
+
+      const file = new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
+      closeCameraCapture()
+      setInputType('image')
+      await uploadFile(file)
+    }
+
+    async function uploadClipboardImage(blob, sourceName = 'clipboard') {
+      if (!blob || !(blob.type || '').startsWith('image/')) return false
+
+      const ext = (blob.type || '').includes('png') ? 'png' : 'jpg'
+      const file = new File([blob], `${sourceName}_${Date.now()}.${ext}`, {
+        type: blob.type || 'image/png',
+      })
+
+      setInputType('image')
+      await uploadFile(file)
+      return true
+    }
+
+    function applyClipboardText(text) {
+      const clean = (text || '').trim()
+      if (!clean) return false
+
+      const urlInput = document.getElementById('mediaUrlGlobal')
+      if (!urlInput) return false
+
+      const isHttpUrl = /^https?:\/\//i.test(clean)
+      urlInput.value = clean
+
+      if (isHttpUrl) {
+        alert('Clipboard URL pasted into the link field. Click Connect to load it.')
+      } else {
+        alert('Clipboard text pasted into the link field.')
+      }
+      return true
+    }
+
+    async function pasteFromClipboard() {
+      if (!navigator.clipboard) {
+        alert('Clipboard API is not available in this browser.')
+        return
+      }
+
+      try {
+        if (navigator.clipboard.read) {
+          const items = await navigator.clipboard.read()
+          for (const item of items) {
+            const imageType = item.types.find(type => type.startsWith('image/'))
+            if (imageType) {
+              const blob = await item.getType(imageType)
+              if (await uploadClipboardImage(blob)) return
+            }
+          }
+        }
+
+        if (navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText()
+          if (applyClipboardText(text)) return
+        }
+
+        alert('Clipboard does not contain a supported image or URL.')
+      } catch (err) {
+        alert('Clipboard access failed: ' + err.message + '. You can also press Ctrl+V to paste an image.')
+      }
+    }
+
+    function handleGlobalPaste(e) {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase()
+      if (activeTag === 'input' || activeTag === 'textarea') return
+
+      const items = Array.from(e.clipboardData?.items || [])
+      const imageItem = items.find(item => item.type && item.type.startsWith('image/'))
+      if (imageItem) {
+        e.preventDefault()
+        const file = imageItem.getAsFile()
+        if (!file) return
+        uploadClipboardImage(file, 'clipboard_paste').catch(err => {
+          alert('Clipboard upload failed: ' + err.message)
+        })
+      }
+    }
+
     async function uploadFromLinkGlobal() {
       const url = (document.getElementById('mediaUrlGlobal').value || '').trim()
       const modelType = document.getElementById('modelSelect').value
@@ -1860,6 +2079,7 @@
       polyPoints = []
       tripwireStart = null
       tripwireEnd = null
+      clearRedoHistory()
       updateStatus()
 
       // set up drawing canvas for Stage 2
@@ -1915,6 +2135,7 @@
       document.getElementById('mediaUrlGlobal').value = ''
       document.getElementById('firstFrameImg').src = ''
       initCanvas(0, 0)
+      clearRedoHistory()
     }
 
     function togglePreviewPlay() {
@@ -1995,6 +2216,26 @@
 
 
     // ── DRAWING CANVAS ────────────────────────────────────────────────────────────
+    function clonePoint(p) {
+      return p ? { x: p.x, y: p.y } : null
+    }
+
+    function syncRedoButton() {
+      const redoBtn = document.getElementById('redoBtn')
+      if (!redoBtn) return
+      redoBtn.disabled = redoStack.length === 0
+    }
+
+    function clearRedoHistory() {
+      redoStack = []
+      syncRedoButton()
+    }
+
+    function pushRedoAction(action) {
+      redoStack.push(action)
+      syncRedoButton()
+    }
+
     function initCanvas(w, h, offsetX = 0, offsetY = 0) {
       const cvs = document.getElementById('drawCanvas')
       cvs.width = w
@@ -2047,9 +2288,11 @@
     function startDraw(e) {
       const { x, y } = canvasXY(e)
       if (tool === 'polygon') {
+        clearRedoHistory()
         polyPoints.push({ x, y })
         redraw()
       } else {
+        clearRedoHistory()
         isDrawingLine = true
         tripwireStart = { x, y }
         tripwireEnd = { x, y }
@@ -2138,8 +2381,43 @@
 
 
     function undoLast() {
-      if (tool === 'polygon') { polyPoints.pop(); redraw() }
-      else { tripwireStart = null; tripwireEnd = null; redraw() }
+      if (tool === 'polygon') {
+        const removed = polyPoints.pop()
+        if (removed) {
+          pushRedoAction({ type: 'polygon_point', point: removed })
+        }
+        redraw()
+      }
+      else {
+        if (tripwireStart && tripwireEnd) {
+          pushRedoAction({
+            type: 'tripwire',
+            start: clonePoint(tripwireStart),
+            end: clonePoint(tripwireEnd),
+          })
+        }
+        tripwireStart = null
+        tripwireEnd = null
+        redraw()
+      }
+      syncRedoButton()
+      updateStatus()
+    }
+
+    function redoLast() {
+      const action = redoStack.pop()
+      syncRedoButton()
+      if (!action) return
+
+      if (action.type === 'polygon_point' && action.point) {
+        polyPoints.push(clonePoint(action.point))
+        redraw()
+      } else if (action.type === 'tripwire' && action.start && action.end) {
+        tripwireStart = clonePoint(action.start)
+        tripwireEnd = clonePoint(action.end)
+        redraw()
+      }
+
       updateStatus()
     }
 
@@ -2147,6 +2425,7 @@
       polyPoints = []
       tripwireStart = null
       tripwireEnd = null
+      clearRedoHistory()
       redraw()
       updateStatus()
       document.getElementById('previewWrap').classList.add('hidden')
@@ -2248,6 +2527,17 @@
           procTargetProgress = Math.max(procTargetProgress, backendProgress)
           document.getElementById('procText').textContent = data.text || 'Processing…'
 
+          if (data.failed) {
+            if (procPollHandle) {
+              clearInterval(procPollHandle)
+              procPollHandle = null
+            }
+            hideProcessingOverlay()
+            alert('Processing failed: ' + (data.error || 'Unknown error'))
+            setStage(2)
+            return
+          }
+
           if (data.done) {
             clearInterval(procPollHandle)
             procPollHandle = null
@@ -2313,6 +2603,23 @@
         }
       }
     }
+    function prettyEventName(eventName) {
+      return String(eventName || 'UNKNOWN').replace(/_/g, ' ')
+    }
+
+    function eventBadge(eventName, compact = false) {
+      const name = String(eventName || 'UNKNOWN')
+      const palette = {
+        TRIPWIRE_TOUCH: { bg: 'rgba(240,136,62,0.2)', border: '#f0883e', text: '#f7b37e' },
+        LINE_CROSSED: { bg: 'rgba(248,81,73,0.2)', border: '#f85149', text: '#ffb3ad' },
+        ZONE_INTRUSION: { bg: 'rgba(227,179,65,0.2)', border: '#e3b341', text: '#f2d787' },
+        LOITERING: { bg: 'rgba(63,185,80,0.2)', border: '#3fb950', text: '#9be9a8' },
+      }
+      const p = palette[name] || { bg: 'rgba(139,148,158,0.2)', border: '#8b949e', text: '#c9d1d9' }
+      const fontSize = compact ? '10px' : '11px'
+      const padding = compact ? '2px 6px' : '3px 8px'
+      return `<span style="display:inline-flex; align-items:center; border:1px solid ${p.border}; background:${p.bg}; color:${p.text}; font-size:${fontSize}; font-weight:700; letter-spacing:0.04em; border-radius:999px; padding:${padding}; text-transform:uppercase;">${prettyEventName(name)}</span>`
+    }
 
     function alertCard(a, jumpable = true) {
       const c = THREAT_COLORS[a.threat_level] || '#888'
@@ -2321,7 +2628,10 @@
       <span style="color:${c}; font-size:12px; font-weight:700;">${a.threat_level}</span>
       <span style="color:var(--text-secondary); font-size:12px;">${a.label} #${a.track_id}</span>
     </div>
-    <div style="font-size:13px; color:var(--text-primary); margin-bottom:4px;">${a.event} · ${a.direction}</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:4px;">
+      ${eventBadge(a.event)}
+      <span style="font-size:12px; color:var(--text-secondary);">${a.direction || 'N/A'}</span>
+    </div>
     <div style="display:flex; justify-content:space-between; align-items:center;">
        <span style="font-size:12px; color:var(--text-secondary);">${a.timestamp.toFixed?.(2) || a.timestamp}s</span>
        ${jumpable ? `<span style="color:var(--accent); cursor:pointer; font-size:12px;" onclick="jumpTo(${a.frame_idx})">Jump →</span>` : ''}
@@ -2337,7 +2647,10 @@
       <td style="padding:10px;">${(a.timestamp.toFixed?.(2) || a.timestamp)}s</td>
       <td style="padding:10px;">${a.frame_idx ?? '-'}</td>
       <td style="padding:10px;">#${a.track_id}</td>
-      <td style="padding:10px;">${a.label}</td>
+      <td style="padding:10px;">
+        <div style="font-size:13px; color:var(--text-primary); margin-bottom:4px;">${a.label}</div>
+        ${eventBadge(a.event, true)}
+      </td>
       <td style="padding:10px;"><span style="color:${c}; font-weight:600;">${a.threat_level}</span></td>
       <td style="padding:10px;">${Math.round(a.confidence * 100)}%</td>
       <td style="padding:10px;"><span style="color:var(--accent);cursor:pointer;" onclick="jumpTo(${a.frame_idx})">→</span></td>
@@ -2494,6 +2807,7 @@
     setTool('polygon')
     updateStage2ConfigSummary()
     updateStatus()
+    syncRedoButton()
     updateBackButtonState()
   </script>
 

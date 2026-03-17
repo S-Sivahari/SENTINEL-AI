@@ -2,7 +2,7 @@
 SentinelAI - Flask Backend
 Run: python app.py
 """
-import os, csv, base64, tempfile, threading, io as io_module, mimetypes
+import os, csv, base64, tempfile, threading, io as io_module, mimetypes, socket, ipaddress
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
@@ -14,6 +14,11 @@ from ultralytics import YOLO
 from threat_engine import ThreatEngine
 
 app   = Flask(__name__, static_folder="static")
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "250"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+PROCESS_LOCK = threading.Lock()
+
 MODELS = {
     "yolov8n": YOLO("yolov8n.pt"),
     "yolov8s": None,
@@ -49,6 +54,7 @@ STATE = {
     "frame_skip":   3,
     "selected_model":"yolov8n",
     "conf_threshold": 0.25,
+    "processing_error": None,
 }
 
 
@@ -83,6 +89,16 @@ def get_model(key=None):
 def to_b64(frame_bgr: np.ndarray) -> str:
     _, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
     return base64.b64encode(buf.tobytes()).decode()
+
+
+def _safe_remove_file(path: str | None):
+    if not path:
+        return
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
 
 
 def render_frame(frame: np.ndarray, idx: int) -> np.ndarray:
@@ -157,6 +173,59 @@ def _is_allowed_video_suffix(name: str) -> bool:
     return ext == ".mp4"
 
 
+def _validate_remote_media_url(url: str) -> tuple[bool, str]:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return False, "Only http/https URLs are supported"
+
+    host = parsed.hostname
+    if not host:
+        return False, "URL host is missing"
+
+    if host.lower() == "localhost":
+        return False, "Localhost URLs are not allowed"
+
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False, "Could not resolve URL host"
+
+    seen_ips = set()
+    for info in infos:
+        ip = info[4][0]
+        if ip in seen_ips:
+            continue
+        seen_ips.add(ip)
+
+        ip_obj = ipaddress.ip_address(ip)
+        if (
+            ip_obj.is_loopback
+            or ip_obj.is_private
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            return False, "URL resolves to a non-public network address"
+
+    return True, ""
+
+
+def _read_response_with_limit(resp, max_bytes: int = MAX_UPLOAD_BYTES) -> tuple[bytes | None, str | None]:
+    cl_header = resp.headers.get("Content-Length")
+    if cl_header:
+        try:
+            if int(cl_header) > max_bytes:
+                return None, f"Remote file is larger than {MAX_UPLOAD_MB}MB"
+        except ValueError:
+            pass
+
+    raw = resp.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        return None, f"Remote file is larger than {MAX_UPLOAD_MB}MB"
+    return raw, None
+
+
 def _reset_media_state(
     *,
     first_frame: np.ndarray,
@@ -165,6 +234,10 @@ def _reset_media_state(
     video_path: str | None,
     media_type: str,
 ):
+    old_video_path = STATE.get("video_path")
+    if old_video_path and old_video_path != video_path:
+        _safe_remove_file(old_video_path)
+
     STATE.update({
         "video_path":   video_path,
         "media_type":   media_type,
@@ -180,6 +253,7 @@ def _reset_media_state(
         "processing":   False,
         "progress":     0,
         "progress_text":"",
+        "processing_error": None,
     })
 
 
@@ -244,11 +318,17 @@ def index():
 
 @app.route("/upload", methods=["POST"])
 def upload():
+    if STATE.get("processing"):
+        return jsonify({"error": "Cannot upload while processing is running"}), 409
+
     f = request.files.get("media") or request.files.get("video")
     if f is None:
         return jsonify({"error": "No file uploaded"}), 400
 
     input_type = (request.form.get("input_type") or "video").lower()
+    if input_type not in {"image", "video", "auto"}:
+        return jsonify({"error": "Invalid input_type"}), 400
+
     filename = f.filename or "upload.bin"
     suffix = os.path.splitext(filename)[1] or ".mp4"
     selected_model = _safe_model_key(request.form.get("model_type"))
@@ -261,6 +341,8 @@ def upload():
     raw = f.read()
     if not raw:
         return jsonify({"error": "Uploaded file is empty"}), 400
+    if len(raw) > MAX_UPLOAD_BYTES:
+        return jsonify({"error": f"Uploaded file exceeds {MAX_UPLOAD_MB}MB limit"}), 413
 
     if input_type == "image" and not _is_allowed_image_suffix(filename):
         return jsonify({"error": "Image uploads must be .jpg or .png"}), 400
@@ -293,9 +375,15 @@ def upload():
 
 @app.route("/upload_link", methods=["POST"])
 def upload_link():
+    if STATE.get("processing"):
+        return jsonify({"error": "Cannot upload while processing is running"}), 409
+
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
     input_type = (data.get("input_type") or "auto").lower()
+    if input_type not in {"image", "video", "auto"}:
+        return jsonify({"error": "Invalid input_type"}), 400
+
     selected_model = _safe_model_key(data.get("model_type"))
     STATE["selected_model"] = selected_model
     STATE["conf_threshold"] = _safe_conf_threshold(
@@ -306,12 +394,18 @@ def upload_link():
     if not url:
         return jsonify({"error": "URL is required"}), 400
 
+    is_valid_url, validation_msg = _validate_remote_media_url(url)
+    if not is_valid_url:
+        return jsonify({"error": validation_msg}), 400
+
 
     try:
         req = Request(url, headers={"User-Agent": "SentinelAI/1.0"})
         with urlopen(req, timeout=20) as resp:
-            raw = resp.read()
+            raw, read_err = _read_response_with_limit(resp)
             content_type = resp.headers.get("Content-Type", "")
+            if read_err:
+                return jsonify({"error": read_err}), 413
     except Exception as ex:
         return jsonify({"error": f"Could not fetch URL: {ex}"}), 400
 
@@ -351,10 +445,40 @@ def upload_link():
 
 @app.route("/set_geometry", methods=["POST"])
 def set_geometry():
-    data = request.json
-    STATE["zone_points"] = [list(p) for p in data.get("zone", [])]
-    tw   = data.get("tripwire")
-    STATE["tripwire"]    = [list(tw[0]), list(tw[1])] if tw else None
+    if STATE.get("processing"):
+        return jsonify({"error": "Cannot modify geometry while processing is running"}), 409
+
+    if STATE["first_frame"] is None:
+        return jsonify({"error": "No media loaded"}), 400
+
+    data = request.get_json(silent=True) or {}
+    h, w = STATE["first_frame"].shape[:2]
+
+    zone_points = []
+    for p in data.get("zone", []) if isinstance(data.get("zone", []), list) else []:
+        if not isinstance(p, (list, tuple)) or len(p) < 2:
+            continue
+        try:
+            x = max(0, min(w - 1, int(round(float(p[0])))))
+            y = max(0, min(h - 1, int(round(float(p[1])))))
+            zone_points.append([x, y])
+        except (TypeError, ValueError):
+            continue
+
+    tripwire = None
+    tw = data.get("tripwire")
+    if isinstance(tw, list) and len(tw) == 2:
+        try:
+            x1 = max(0, min(w - 1, int(round(float(tw[0][0])))))
+            y1 = max(0, min(h - 1, int(round(float(tw[0][1])))))
+            x2 = max(0, min(w - 1, int(round(float(tw[1][0])))))
+            y2 = max(0, min(h - 1, int(round(float(tw[1][1])))))
+            tripwire = [[x1, y1], [x2, y2]]
+        except (TypeError, ValueError, IndexError):
+            tripwire = None
+
+    STATE["zone_points"] = zone_points
+    STATE["tripwire"] = tripwire
 
     preview = STATE["first_frame"].copy()
     if len(STATE["zone_points"]) >= 3:
@@ -394,61 +518,141 @@ def video_source():
 
 
 def _run_processing():
-    engine = ThreatEngine(fps=STATE["fps"])
-    if STATE["zone_points"]:
-        engine.set_zone(STATE["zone_points"])
-    if STATE["tripwire"]:
-        engine.set_tripwire(STATE["tripwire"][0], STATE["tripwire"][1])
+    success = False
+    try:
+        engine = ThreatEngine(fps=STATE["fps"])
+        if STATE["zone_points"]:
+            engine.set_zone(STATE["zone_points"])
+        if STATE["tripwire"]:
+            engine.set_tripwire(STATE["tripwire"][0], STATE["tripwire"][1])
 
-    frame_skip = max(1, int(STATE.get("frame_skip", 3)))
-    conf_threshold = _safe_conf_threshold(STATE.get("conf_threshold", 0.25), 0.25)
+        conf_threshold = _safe_conf_threshold(STATE.get("conf_threshold", 0.25), 0.25)
 
-    # Single-image path: process once and build review payloads compatible with video flow.
-    if STATE.get("media_type") == "image":
-        frame = STATE["first_frame"].copy()
-        model = get_model()
-        results = model.track(frame, tracker="bytetrack.yaml", persist=True, verbose=False)
+        # Single-image path: process once and build review payloads compatible with video flow.
+        if STATE.get("media_type") == "image":
+            frame = STATE["first_frame"].copy()
+            model = get_model()
+            results = model.track(frame, tracker="bytetrack.yaml", persist=True, verbose=False)
 
-        dets = []
-        for r in results:
-            if r.boxes is None:
-                continue
-            for box in r.boxes:
-                cid = int(box.cls)
-                lbl = model.names[cid]
-                conf = float(box.conf)
-                if conf < conf_threshold:
+            dets = []
+            for r in results:
+                if r.boxes is None:
                     continue
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                tid = int(box.id) if box.id is not None else -1
-                dets.append((tid, lbl, conf, x1, y1, x2, y2))
+                for box in r.boxes:
+                    cid = int(box.cls)
+                    lbl = model.names[cid]
+                    conf = float(box.conf)
+                    if conf < conf_threshold:
+                        continue
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    tid = int(box.id) if box.id is not None else -1
+                    dets.append((tid, lbl, conf, x1, y1, x2, y2))
 
-        alerts = engine.process_frame(0, dets)
-        STATE["frame_data"] = {
-            0: {
-                "dets": dets,
-                "alerts": [
-                    {
-                        "frame_idx":   a.frame_idx,
-                        "timestamp":   round(a.timestamp, 2),
-                        "track_id":    a.track_id,
-                        "label":       a.label,
-                        "event":       a.event,
-                        "direction":   a.direction,
-                        "threat_level":a.threat_level,
-                        "position":    list(a.position),
-                        "confidence":  round(a.confidence, 2),
-                    }
-                    for a in alerts
-                ],
+            alerts = engine.process_frame(0, dets)
+            STATE["frame_data"] = {
+                0: {
+                    "dets": dets,
+                    "alerts": [
+                        {
+                            "frame_idx":   a.frame_idx,
+                            "timestamp":   round(a.timestamp, 2),
+                            "track_id":    a.track_id,
+                            "label":       a.label,
+                            "event":       a.event,
+                            "direction":   a.direction,
+                            "threat_level":a.threat_level,
+                            "position":    list(a.position),
+                            "confidence":  round(a.confidence, 2),
+                        }
+                        for a in alerts
+                    ],
+                }
             }
-        }
+
+            hm = None
+            if engine.intrusion_positions:
+                hm = engine.generate_heatmap(STATE["frame_shape"], engine.intrusion_positions)
+
+            STATE["all_alerts"] = [
+                {
+                    "frame_idx":   a.frame_idx,
+                    "timestamp":   round(a.timestamp, 2),
+                    "track_id":    a.track_id,
+                    "label":       a.label,
+                    "event":       a.event,
+                    "direction":   a.direction,
+                    "threat_level":a.threat_level,
+                    "position":    list(a.position),
+                    "confidence":  round(a.confidence, 2),
+                }
+                for a in engine.alerts
+            ]
+            STATE["heatmap_img"] = hm
+            STATE["total_frames"] = 1
+            STATE["progress_text"] = "Frame 1 / 1"
+            success = True
+            return
+
+        cap   = cv2.VideoCapture(STATE["video_path"])
+        total = STATE["total_frames"] or 1
+        fdata = {}
+        idx   = 0
+
+        try:
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                model = get_model()
+                results = model.track(frame, tracker="bytetrack.yaml",
+                                      persist=True, verbose=False)
+
+                dets = []
+                for r in results:
+                    if r.boxes is None:
+                        continue
+                    for box in r.boxes:
+                        cid  = int(box.cls)
+                        lbl  = model.names[cid]
+                        conf = float(box.conf)
+                        if conf < conf_threshold:
+                            continue
+                        x1,y1,x2,y2 = map(int, box.xyxy[0])
+                        tid  = int(box.id) if box.id is not None else -1
+                        dets.append((tid, lbl, conf, x1, y1, x2, y2))
+                alerts = engine.process_frame(idx, dets)
+
+                fdata[idx] = {
+                    "dets": dets,
+                    "alerts": [
+                        {
+                            "frame_idx":   a.frame_idx,
+                            "timestamp":   round(a.timestamp, 2),
+                            "track_id":    a.track_id,
+                            "label":       a.label,
+                            "event":       a.event,
+                            "direction":   a.direction,
+                            "threat_level":a.threat_level,
+                            "position":    list(a.position),
+                            "confidence":  round(a.confidence, 2),
+                        }
+                        for a in alerts
+                    ],
+                }
+
+                STATE["progress"]      = int((idx + 1) / total * 100)
+                STATE["progress_text"] = f"Frame {idx + 1} / {total}"
+                idx += 1
+        finally:
+            cap.release()
 
         hm = None
         if engine.intrusion_positions:
             hm = engine.generate_heatmap(STATE["frame_shape"], engine.intrusion_positions)
 
-        STATE["all_alerts"] = [
+        STATE["frame_data"]   = fdata
+        STATE["all_alerts"]   = [
             {
                 "frame_idx":   a.frame_idx,
                 "timestamp":   round(a.timestamp, 2),
@@ -462,127 +666,61 @@ def _run_processing():
             }
             for a in engine.alerts
         ]
-        STATE["heatmap_img"] = hm
-        STATE["total_frames"] = 1
-        STATE["progress_text"] = "Frame 1 / 1"
+        STATE["heatmap_img"]  = hm
+        STATE["total_frames"] = idx
+        success = True
+    except Exception as ex:
+        STATE["processing_error"] = str(ex)
+        STATE["progress_text"] = f"Processing failed: {ex}"
+    finally:
+        if success:
+            STATE["progress"] = 100
+            STATE["processing_error"] = None
         STATE["processing"] = False
-        STATE["progress"] = 100
-        return
-
-    cap   = cv2.VideoCapture(STATE["video_path"])
-    total = STATE["total_frames"] or 1
-    fdata = {}
-    idx   = 0
-    last_dets = []
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        if idx % frame_skip == 0:
-            model = get_model()
-            results = model.track(frame, tracker="bytetrack.yaml",
-                                  persist=True, verbose=False)
-
-            dets = []
-            for r in results:
-                if r.boxes is None:
-                    continue
-                for box in r.boxes:
-                    cid  = int(box.cls)
-                    lbl  = model.names[cid]
-                    conf = float(box.conf)
-                    if conf < conf_threshold:
-                        continue
-                    x1,y1,x2,y2 = map(int, box.xyxy[0])
-                    tid  = int(box.id) if box.id is not None else -1
-                    dets.append((tid, lbl, conf, x1, y1, x2, y2))
-            last_dets = dets
-            alerts = engine.process_frame(idx, dets)
-        else:
-            dets   = last_dets
-            alerts = []
-
-        fdata[idx] = {
-            "dets": dets,
-            "alerts": [
-                {
-                    "frame_idx":   a.frame_idx,
-                    "timestamp":   round(a.timestamp, 2),
-                    "track_id":    a.track_id,
-                    "label":       a.label,
-                    "event":       a.event,
-                    "direction":   a.direction,
-                    "threat_level":a.threat_level,
-                    "position":    list(a.position),
-                    "confidence":  round(a.confidence, 2),
-                }
-                for a in alerts
-            ],
-        }
-
-        STATE["progress"]      = int(idx / total * 100)
-        STATE["progress_text"] = f"Frame {idx} / {total}"
-        idx += 1
-
-    cap.release()
-
-    hm = None
-    if engine.intrusion_positions:
-        hm = engine.generate_heatmap(STATE["frame_shape"], engine.intrusion_positions)
-
-    STATE["frame_data"]   = fdata
-    STATE["all_alerts"]   = [
-        {
-            "frame_idx":   a.frame_idx,
-            "timestamp":   round(a.timestamp, 2),
-            "track_id":    a.track_id,
-            "label":       a.label,
-            "event":       a.event,
-            "direction":   a.direction,
-            "threat_level":a.threat_level,
-            "position":    list(a.position),
-            "confidence":  round(a.confidence, 2),
-        }
-        for a in engine.alerts
-    ]
-    STATE["heatmap_img"]  = hm
-    STATE["total_frames"] = idx
-    STATE["processing"]   = False
-    STATE["progress"]     = 100
 
 
 @app.route("/process", methods=["POST"])
 def process():
-    if STATE["processing"]:
-        return jsonify({"error": "Already processing"}), 400
-    body = request.get_json(silent=True) or {}
-    if "frame_skip" in body:
-        try:
-            STATE["frame_skip"] = max(1, int(body["frame_skip"]))
-        except Exception:
-            STATE["frame_skip"] = 3
-    if "conf_threshold" in body:
-        STATE["conf_threshold"] = _safe_conf_threshold(
-            body.get("conf_threshold"),
-            STATE.get("conf_threshold", 0.25),
-        )
-    if "model_type" in body:
-        STATE["selected_model"] = _safe_model_key(body.get("model_type"))
-    STATE["processing"] = True
-    STATE["progress"]   = 0
-    t = threading.Thread(target=_run_processing, daemon=True)
-    t.start()
+    with PROCESS_LOCK:
+        if STATE["processing"]:
+            return jsonify({"error": "Already processing"}), 400
+        if STATE["first_frame"] is None:
+            return jsonify({"error": "No media loaded"}), 400
+
+        body = request.get_json(silent=True) or {}
+        if "frame_skip" in body:
+            try:
+                STATE["frame_skip"] = max(1, int(body["frame_skip"]))
+            except Exception:
+                STATE["frame_skip"] = 3
+        if "conf_threshold" in body:
+            STATE["conf_threshold"] = _safe_conf_threshold(
+                body.get("conf_threshold"),
+                STATE.get("conf_threshold", 0.25),
+            )
+        if "model_type" in body:
+            STATE["selected_model"] = _safe_model_key(body.get("model_type"))
+
+        STATE["processing"] = True
+        STATE["progress"]   = 0
+        STATE["progress_text"] = "Initializing processing..."
+        STATE["processing_error"] = None
+
+        t = threading.Thread(target=_run_processing, daemon=True)
+        t.start()
+
     return jsonify({"started": True})
 
 
 @app.route("/progress")
 def progress():
+    failed = bool(STATE.get("processing_error"))
     return jsonify({
         "progress": STATE["progress"],
         "text":     STATE["progress_text"],
-        "done":     not STATE["processing"] and STATE["progress"] == 100,
+        "done":     (not STATE["processing"]) and (STATE["progress"] >= 100 or failed),
+        "failed":   failed,
+        "error":    STATE.get("processing_error"),
     })
 
 
@@ -590,6 +728,9 @@ def progress():
 def get_frame(idx):
     if STATE["first_frame"] is None:
         return jsonify({"error": "No video loaded"}), 400
+
+    total = max(1, int(STATE.get("total_frames") or 1))
+    idx = max(0, min(idx, total - 1))
 
     raw      = read_raw_frame(idx)
     rendered = render_frame(raw, idx)
@@ -668,6 +809,11 @@ def export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=sentinel_alerts.csv"},
     )
+
+
+@app.errorhandler(413)
+def request_entity_too_large(_err):
+    return jsonify({"error": f"Payload too large. Max allowed size is {MAX_UPLOAD_MB}MB."}), 413
 
 
 if __name__ == "__main__":

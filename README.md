@@ -8,7 +8,7 @@ app_file: app.py
 pinned: false
 ---
 
-# 🛡️ SentinelAI — Border Threat Detection System
+# 🛡️ Sentinel AI — Border Threat Detection System
 
 A real-time AI-powered surveillance system for detecting threats at borders using YOLO v8 object detection, persistent tracking, polygon zone intrusion detection, tripwire crossing alerts, and intelligent threat scoring.
 
@@ -25,6 +25,9 @@ A real-time AI-powered surveillance system for detecting threats at borders usin
 - **🗺️ Heatmap** — Visual density map of all intrusion events
 - **📋 Alert Log** — Timestamped alerts with export to CSV
 - **📹 Frame Scrubbing** — Play/pause, frame-by-frame review, click-to-jump alerts
+- **📷 Camera Capture** — Capture a frame directly from webcam and upload instantly
+- **📋 Clipboard Ingest** — Paste image screenshots or URL text from clipboard
+- **↩️↪️ Geometry Undo/Redo** — Step backward and forward while defining zone/tripwire
 
 ## 🚀 Quick Start
 
@@ -33,7 +36,7 @@ A real-time AI-powered surveillance system for detecting threats at borders usin
 ```bash
 # Clone and setup
 git clone <your-repo-url>
-cd sentinel-ai
+cd SENTINEL
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
@@ -65,13 +68,17 @@ docker run -p 7860:7860 sentinel-ai
 
 ## 🎮 How to Use
 
-### Step 1: Upload Video
-- Drag & drop or select a surveillance video (mp4, avi, mov, mkv)
-- System extracts and processes the first frame
+### Step 1: Upload Media
+- Choose **Image** or **Video** mode
+- Upload from file, URL, camera capture, or clipboard
+- Supported formats:
+    - **Image**: `.jpg`, `.png`
+    - **Video**: `.mp4`
 
 ### Step 2: Define Restricted Zone & Tripwire
 - **Polygon Zone** (🔺): Click to place corners, double-click to close → defines restricted area
 - **Tripwire Line** (━): Draw a line for entry/exit detection → crossing triggers alerts
+- Use **Undo** and **Redo** while editing geometry
 - Click **"Confirm & Preview"** to verify placement
 
 ### Step 3: Configure & Process
@@ -84,6 +91,10 @@ docker run -p 7860:7860 sentinel-ai
 - **Alert Log**: Click any alert to jump to that frame
 - **Heatmap**: See density of intrusions with breakdown statistics
 - **Export**: Download all alerts as CSV
+
+### Browser Permissions
+- Camera capture requires camera permission in the browser
+- Clipboard image/text read may require clipboard permission and secure context (localhost/HTTPS)
 
 ## 📊 Threat Scoring System
 
@@ -174,12 +185,22 @@ CLASS_COLORS = {            # Customize detection colors
 | `/upload` | POST | Upload media file (multipart form-data) |
 | `/upload_link` | POST | Load media directly from URL |
 | `/set_geometry` | POST | Save polygon zone and tripwire geometry |
+| `/get_video_src` | GET | Resolve playable media source after link upload |
+| `/video_source` | GET | Stream current source media |
 | `/process` | POST | Start model processing in background thread |
 | `/progress` | GET | Poll processing progress |
 | `/frame/<idx>` | GET | Get rendered frame by index |
 | `/alerts` | GET | Fetch all generated alerts |
 | `/heatmap` | GET | Fetch blended heatmap and summary stats |
 | `/export_csv` | GET | Download alerts as CSV file |
+
+## 🛡️ Operational Safeguards
+
+- Upload size is limited by `MAX_UPLOAD_MB` (default: **250MB**)
+- Oversized requests return HTTP 413 with JSON error details
+- URL uploads are validated to reject localhost/private-network targets
+- Geometry coordinates are sanitized and clamped to frame bounds
+- Processing failures propagate to UI with explicit error state
 
 ### Example: Get Frame 42
 ```
@@ -250,8 +271,7 @@ Video Input
 ```
 
 ## 📝 License
-
-MIT License — Free for research, commercial use requires licensing.
+MIT
 
 ## 🤝 Contributing
 
@@ -264,8 +284,3 @@ Built for border security, surveillance, and crowded area monitoring.
 ---
 
 **Status**: ✅ Production Ready | **Last Updated**: March 2026
-
-
-## License
-
-MIT
