@@ -29,8 +29,6 @@ A real-time AI-powered surveillance system for detecting threats at borders usin
 - **📋 Clipboard Ingest** — Paste image screenshots or URL text from clipboard
 - **↩️↪️ Geometry Undo/Redo** — Step backward and forward while defining zone/tripwire
 
-## 🚀 Quick Start
-
 ### Local Development
 
 ```bash
