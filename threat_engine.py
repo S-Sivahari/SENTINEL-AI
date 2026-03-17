@@ -212,7 +212,6 @@ class ThreatEngine:
         if o4 == 0 and self._on_segment(p2, q1, q2):
             return True
         return False
-
     def _bbox_touches_tripwire(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         """True when object bbox overlaps/touches tripwire bbox (with small padding)."""
         if self.tripwire_p1 is None or self.tripwire_p2 is None:
