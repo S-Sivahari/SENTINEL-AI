@@ -98,7 +98,7 @@
       background: rgba(22, 24, 31, 0.76);
       border-color: rgba(255, 255, 255, 0.18);
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
-      font-size: 0.9rem;
+      font-size: 0.98rem;
       min-height: 40px;
       padding: 9px 16px;
     }
@@ -167,7 +167,7 @@
       border: 1px solid var(--border);
       background: var(--bg-panel);
       color: var(--text-primary);
-      font-size: 0.92rem;
+      font-size: 1.02rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -227,7 +227,7 @@
       flex: 1;
       padding: 12px 0;
       text-align: center;
-      font-size: 0.85rem;
+      font-size: 0.94rem;
       font-weight: 600;
       color: var(--text-secondary);
       background: transparent;
@@ -287,7 +287,7 @@
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 6px;
       padding: 4px 10px;
-      font-size: 0.72rem;
+      font-size: 0.8rem;
       font-weight: 600;
       color: rgba(255, 255, 255, 0.85);
       letter-spacing: 0.04em;
@@ -338,7 +338,7 @@
       border-radius: 8px;
       padding: 10px 12px;
       color: var(--text-primary);
-      font-size: 0.92rem;
+      font-size: 1rem;
       outline: none;
       transition: all 0.2s ease;
       font-family: var(--font-main);
@@ -368,7 +368,7 @@
       border: none;
       background: transparent;
       border-radius: 6px;
-      font-size: 0.75rem;
+      font-size: 0.84rem;
       font-weight: 600;
       color: var(--text-secondary);
       cursor: pointer;
@@ -383,7 +383,7 @@
 
     .block-label {
       display: block;
-      font-size: 0.75rem;
+      font-size: 0.82rem;
       font-weight: 700;
       color: var(--text-secondary);
       margin-bottom: 10px;
@@ -405,7 +405,7 @@
       border: none;
       background: transparent;
       border-radius: 6px;
-      font-size: 0.85rem;
+      font-size: 0.94rem;
       font-weight: 600;
       color: var(--text-secondary);
       cursor: pointer;
@@ -484,7 +484,7 @@
 
     .tab {
       padding: 12px 4px;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       color: var(--text-secondary);
@@ -506,7 +506,7 @@
 
     .alert-table th {
       color: var(--text-secondary);
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 500;
       text-align: left;
       padding: 12px 16px;
@@ -515,7 +515,7 @@
     .alert-table td {
       background: rgba(255, 255, 255, 0.02);
       padding: 12px 16px;
-      font-size: 13px;
+      font-size: 14px;
     }
 
     .alert-table tr:hover td {
@@ -552,7 +552,7 @@
     }
 
     .metric .lbl {
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
       color: var(--text-secondary);
       text-transform: uppercase;
@@ -695,7 +695,7 @@
       color: var(--text-secondary);
       border-radius: 6px;
       padding: 8px 13px;
-      font-size: 0.92rem;
+      font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -720,7 +720,7 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 8px 12px;
-      font-size: 0.9rem;
+      font-size: 0.98rem;
       color: var(--text-secondary);
     }
 
@@ -755,15 +755,30 @@
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.01);
       padding: 20px;
-      font-size: 0.98rem;
+      font-size: 1.04rem;
     }
 
     .stage2-preview-shell {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 0;
       flex: 1;
-      justify-content: flex-end;
+      min-height: 0;
+      justify-content: stretch;
+    }
+
+    #previewWrap,
+    #previewEmpty {
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .stage2-preview-shell .stage2-media-box,
+    .stage2-preview-shell .stage2-preview-empty {
+      height: 100%;
+      min-height: 0;
+      margin-top: 0;
     }
 
     #firstFrameImg {
@@ -890,7 +905,7 @@
     #stage4 .mode-tab {
       width: 100%;
       padding: 8px 14px;
-      font-size: 0.82rem;
+      font-size: 0.92rem;
       text-align: center;
     }
 
@@ -912,17 +927,17 @@
     }
 
     #stage4 .alert-table th {
-      font-size: 0.72rem;
+      font-size: 0.8rem;
       padding: 8px 10px;
     }
 
     #stage4 .alert-table td {
-      font-size: 0.78rem;
+      font-size: 0.86rem;
       padding: 8px 10px;
     }
 
     #stage4 #statsWrap h2 {
-      font-size: 0.76rem;
+      font-size: 0.82rem;
       margin-bottom: 8px;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -936,7 +951,7 @@
 
     .review-timecode {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.76rem;
+      font-size: 0.86rem;
       color: var(--text-primary);
       white-space: nowrap;
       min-width: 108px;
@@ -951,7 +966,7 @@
       gap: 10px;
       padding: 8px 2px;
       border-bottom: 1px solid var(--border);
-      font-size: 0.84rem;
+      font-size: 0.94rem;
     }
 
     .det-item:last-child {
@@ -967,7 +982,7 @@
       font-weight: 700;
       color: var(--text-primary);
       background: rgba(255, 255, 255, 0.04);
-      font-size: 0.75rem;
+      font-size: 0.84rem;
     }
 
     #statsWrap {
@@ -986,7 +1001,7 @@
       align-items: center;
       gap: 10px;
       margin-bottom: 8px;
-      font-size: 0.82rem;
+      font-size: 0.9rem;
     }
 
     .stat-label {
@@ -1116,7 +1131,7 @@
   </div>
 
   <div id="stage1" class="section landing"
-    style="display: flex; flex-direction: column; gap: 20px; max-width: 1800px; margin: 70px auto 0; padding: 0 170px; min-height: calc(100vh - 116px); justify-content: flex-start;">
+    style="display: flex; flex-direction: column; gap: 20px; max-width: 1800px; margin: 40px auto 0; padding: 0 170px; min-height: calc(100vh - 116px); justify-content: flex-start;">
     <div class="landing-head">
       <h1 class="landing-title">SENTINEL - AI</h1>
       <p class="landing-desc">High-precision border and object detection using the YOLO26 architecture. Upload an image or video to begin spatial threat analysis.</p>
@@ -1151,10 +1166,10 @@
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
 
-            <p id="dropText" style="font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); pointer-events: none;">Drop Image Here</p>
-            <span style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px; pointer-events: none;">- or -</span>
+            <p id="dropText" style="font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); pointer-events: none;">Drop Image Here</p>
+            <span style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 10px; pointer-events: none;">- or -</span>
             <span onclick="fileInputGlobal.click(); event.stopPropagation();"
-              style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); cursor: pointer;">
+              style="font-size: 0.98rem; font-weight: 600; color: var(--text-primary); cursor: pointer;">
               Click to Upload
             </span>
           </div>
@@ -1163,8 +1178,8 @@
 
           <!-- URL Section Integrated -->
           <div style="display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);">
-            <input id="mediaUrlGlobal" class="text-input" type="url" placeholder="Paste image URL..." style="font-size:0.82rem; padding: 8px 12px; height: 36px;" />
-            <button class="btn primary" onclick="uploadFromLinkGlobal()" style="white-space: nowrap; font-size: 0.82rem; padding: 0 16px; height: 36px;">Connect</button>
+            <input id="mediaUrlGlobal" class="text-input" type="url" placeholder="Paste image URL..." style="font-size:0.92rem; padding: 8px 12px; height: 36px;" />
+            <button class="btn primary" onclick="uploadFromLinkGlobal()" style="white-space: nowrap; font-size: 0.92rem; padding: 0 16px; height: 36px;">Connect</button>
           </div>
 
           <div class="upload-card-toolbar">
@@ -1191,7 +1206,7 @@
         <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
           <div>
             <label class="block-label">Engine Selector</label>
-            <select id="modelSelect" class="text-input" style="padding: 12px 16px; font-size: 0.9rem;">
+            <select id="modelSelect" class="text-input" style="padding: 12px 16px; font-size: 1rem;">
               <option value="yolov8n">yolo26n.pt (Nano)</option>
               <option value="yolov8s">yolo26s.pt (Small)</option>
               <option value="yolov8m">yolo26m.pt (Medium)</option>
@@ -1241,7 +1256,7 @@
               <circle cx="8.5" cy="8.5" r="1.5" />
               <polyline points="21 15 16 10 5 21" />
             </svg>
-            <span style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; color: rgba(255,255,255,0.4);">RESOURCE PREVIEW</span>
+            <span style="font-size: 0.95rem; font-weight: 600; letter-spacing: 0.1em; color: rgba(255,255,255,0.4);">RESOURCE PREVIEW</span>
           </div>
 
           <div id="imagePreviewWrap" class="hidden" style="flex:1; display:flex; align-items:center; justify-content:center; background:#000;">
@@ -1254,9 +1269,9 @@
               <button id="vidPlayBtn" onclick="togglePreviewPlay()" style="background:none; border:none; color:#fff; cursor:pointer; padding:0; display:flex; align-items:center;">
                 <svg id="vidPlayIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
               </button>
-              <span id="vidCurrentTime" style="font-size:0.8rem; color:#fff; min-width:35px; text-align:center;">0:00</span>
+              <span id="vidCurrentTime" style="font-size:0.9rem; color:#fff; min-width:35px; text-align:center;">0:00</span>
               <input id="vidSeekSlider" class="preview-slider" type="range" min="0" max="0" value="0" step="0.01" oninput="seekPreviewVideoRange(this.value)" />
-              <span id="vidDuration" style="font-size:0.8rem; color:#fff; min-width:35px; text-align:center;">0:00</span>
+              <span id="vidDuration" style="font-size:0.9rem; color:#fff; min-width:35px; text-align:center;">0:00</span>
             </div>
           </div>
         </div>
@@ -1269,7 +1284,7 @@
 
   <!-- Hidden progress indicator -->
   <div id="uploadProgress" class="hidden" style="margin-top: 8px;">
-    <div id="uploadText" style="font-size: 0.85rem; margin-bottom: 8px; color: var(--accent);">Synchronizing Resource...
+    <div id="uploadText" style="font-size: 0.95rem; margin-bottom: 8px; color: var(--accent);">Synchronizing Resource...
     </div>
     <div style="height: 2px; background: var(--border); overflow: hidden;">
       <div id="uploadFill" style="height: 100%; background: var(--accent); transition: width 0.3s ease; width: 0%;">
@@ -1306,7 +1321,7 @@
           <span class="stage2-pill">Frame Skip<strong id="stage2FrameSkipVal">3</strong></span>
         </div>
 
-        <div id="toolHint" style="font-size: 14px; color: var(--accent); margin-bottom: 12px; font-weight: 600;">
+        <div id="toolHint" style="font-size: 16px; color: var(--accent); margin-bottom: 12px; font-weight: 600;">
           Click to place polygon corners. Double-click to close.
         </div>
 
@@ -1316,8 +1331,8 @@
         </div>
 
         <div style="margin-top:16px; display:flex; gap:16px;">
-          <span id="zoneStatus" style="font-size:14px; color:var(--text-secondary)">Zone: not drawn</span>
-          <span id="wireStatus" style="font-size:14px; color:var(--text-secondary)">Tripwire: not set</span>
+          <span id="zoneStatus" style="font-size:16px; color:var(--text-secondary)">Zone: not drawn</span>
+          <span id="wireStatus" style="font-size:16px; color:var(--text-secondary)">Tripwire: not set</span>
         </div>
 
         <div style="margin-top: 28px; display: flex; justify-content: flex-end;">
@@ -1332,7 +1347,7 @@
         <div class="stage2-preview-shell">
           <div id="previewWrap" class="hidden">
             <div class="stage2-media-box">
-              <img id="previewImg" src="" alt="preview" style="width:100%; height:100%; object-fit:contain; display: block;" />
+              <img id="previewImg" src="" alt="preview" style="width:100%; height:100%; object-fit:fill; display: block;" />
             </div>
           </div>
           <div id="previewEmpty" class="stage2-preview-empty">
@@ -1390,13 +1405,13 @@
 
           <div id="tabLog" class="card timeline-card">
             <div class="timeline-head">
-              <h2 style="margin: 0; font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary);">Intrusion Timeline</h2>
-              <span id="alertCount" style="font-size:11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;"></span>
-              <button class="btn sm" onclick="exportCSV()" style="font-size: 11px;">Export (.csv)</button>
+              <h2 style="margin: 0; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary);">Intrusion Timeline</h2>
+              <span id="alertCount" style="font-size:12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;"></span>
+              <button class="btn sm" onclick="exportCSV()" style="font-size: 12px;">Export (.csv)</button>
             </div>
 
             <div class="timeline-table-wrap">
-              <table class="alert-table" style="width: 100%; border-collapse: collapse; font-size: 12px;">
+              <table class="alert-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                 <thead style="position: sticky; top: 0; background: var(--bg-panel); z-index: 10;">
                   <tr style="text-align: left; color: var(--text-secondary); border-bottom: 1px solid var(--border);">
                     <th style="padding: 10px;">Time</th>
@@ -1414,7 +1429,7 @@
           </div>
 
           <div id="tabHeatmap" class="card timeline-card hidden">
-            <h2 style="margin: 0 0 10px; font-size: 0.9rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary);">Heat Zone Analytics</h2>
+            <h2 style="margin: 0 0 10px; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary);">Heat Zone Analytics</h2>
             <img id="heatmapImg" src="" alt="heatmap" style="width: 100%; max-height: 280px; object-fit: contain; display: block; border-radius: 8px; background: #000;" />
             <div id="statsWrap" style="margin-top: 12px;"></div>
           </div>
@@ -2280,7 +2295,7 @@
       // detection counts
       const dc = document.getElementById('detCounts')
       if (Object.keys(data.counts).length === 0) {
-        dc.innerHTML = '<div style="color:#8b949e;font-size:13px">No detections</div>'
+        dc.innerHTML = '<div style="color:#8b949e;font-size:14px">No detections</div>'
       } else {
         dc.innerHTML = Object.entries(data.counts)
           .sort((a, b) => b[1] - a[1])
@@ -2292,7 +2307,7 @@
       const fa = document.getElementById('frameAlerts')
       if (fa) {
         if (!data.alerts.length) {
-          fa.innerHTML = '<div style="color:#8b949e;font-size:13px">No alerts this frame</div>'
+          fa.innerHTML = '<div style="color:#8b949e;font-size:14px">No alerts this frame</div>'
         } else {
           fa.innerHTML = data.alerts.map(a => alertCard(a, false)).join('')
         }
@@ -2303,13 +2318,13 @@
       const c = THREAT_COLORS[a.threat_level] || '#888'
       return `<div class="card" style="padding:12px; border-color:${c}; border-width:1px; margin-bottom:8px; background:rgba(255,255,255,0.02)">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-      <span style="color:${c}; font-size:11px; font-weight:700;">${a.threat_level}</span>
-      <span style="color:var(--text-secondary); font-size:11px;">${a.label} #${a.track_id}</span>
+      <span style="color:${c}; font-size:12px; font-weight:700;">${a.threat_level}</span>
+      <span style="color:var(--text-secondary); font-size:12px;">${a.label} #${a.track_id}</span>
     </div>
-    <div style="font-size:12px; color:var(--text-primary); margin-bottom:4px;">${a.event} · ${a.direction}</div>
+    <div style="font-size:13px; color:var(--text-primary); margin-bottom:4px;">${a.event} · ${a.direction}</div>
     <div style="display:flex; justify-content:space-between; align-items:center;">
-       <span style="font-size:11px; color:var(--text-secondary);">${a.timestamp.toFixed?.(2) || a.timestamp}s</span>
-       ${jumpable ? `<span style="color:var(--accent); cursor:pointer; font-size:11px;" onclick="jumpTo(${a.frame_idx})">Jump →</span>` : ''}
+       <span style="font-size:12px; color:var(--text-secondary);">${a.timestamp.toFixed?.(2) || a.timestamp}s</span>
+       ${jumpable ? `<span style="color:var(--accent); cursor:pointer; font-size:12px;" onclick="jumpTo(${a.frame_idx})">Jump →</span>` : ''}
     </div>
   </div>`
     }
@@ -2339,19 +2354,19 @@
       document.getElementById('summaryMetrics').innerHTML = `
     <div class="card" style="margin:0; padding:12px; text-align:center;">
        <div style="font-size:18px; font-weight:600;">${total}</div>
-       <div style="font-size:10px; color:var(--text-secondary);">TOTAL</div>
+       <div style="font-size:11px; color:var(--text-secondary);">TOTAL</div>
     </div>
     <div class="card" style="margin:0; padding:12px; text-align:center; border-color: ${THREAT_COLORS.CRITICAL}">
        <div style="font-size:18px; font-weight:600; color: ${THREAT_COLORS.CRITICAL}">${critical}</div>
-       <div style="font-size:10px; color:var(--text-secondary);">CRITICAL</div>
+       <div style="font-size:11px; color:var(--text-secondary);">CRITICAL</div>
     </div>
     <div class="card" style="margin:0; padding:12px; text-align:center; border-color: ${THREAT_COLORS.HIGH}">
        <div style="font-size:18px; font-weight:600; color: ${THREAT_COLORS.HIGH}">${high}</div>
-       <div style="font-size:10px; color:var(--text-secondary);">HIGH</div>
+       <div style="font-size:11px; color:var(--text-secondary);">HIGH</div>
     </div>
     <div class="card" style="margin:0; padding:12px; text-align:center;">
        <div style="font-size:18px; font-weight:600; color: var(--accent);">${entries}</div>
-       <div style="font-size:10px; color:var(--text-secondary);">ENTRIES</div>
+       <div style="font-size:11px; color:var(--text-secondary);">ENTRIES</div>
     </div>
   `
     }
